@@ -1,0 +1,10 @@
+curlE   	 8.563401e+01
+injectH 	 2.103284e-03
+udpateH 	 2.669301e+01
+curlH   	 7.654292e+01
+injectE 	 6.076584e-03
+udpateE 	 3.415984e+01
+airwave 	 1.936568e+02
+dtft    	 2.626425e+01
+conv    	 2.359794e-03
+total   	 4.429614e+02

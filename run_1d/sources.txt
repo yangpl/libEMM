@@ -1,0 +1,2 @@
+          x1          x2          x3     azimuth         dip         iTx
+           0           0   775.000000               0           0           1

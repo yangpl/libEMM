@@ -1,0 +1,48 @@
+==86976== NVPROF is profiling process 86976, command: ../bin/fdtd mode=0 fsrc=sources.txt frec=receivers.txt fsrcrec=src_rec_table.txt frho11=rho11 frho22=rho22 frho33=rho33 chsrc=Ex chrec=Ex x1min=-10000 x1max=10000 x2min=-10000 x2max=10000 x3min=0 x3max=5000 n1=101 n2=101 n3=101 d1=200 d2=200 d3=50 nb=12 n
+==86976== Profiling application: ../bin/fdtd mode=0 fsrc=sources.txt frec=receivers.txt fsrcrec=src_rec_table.txt frho11=rho11 frho22=rho22 frho33=rho33 chsrc=Ex chrec=Ex x1min=-10000 x1max=10000 x2min=-10000 x2max=10000 x3min=0 x3max=5000 n1=101 n2=101 n3=101 d1=200 d2=200 d3=50 nb=12 n
+==86976== Profiling result:
+            Type  Time(%)      Time     Calls       Avg       Min       Max  Name
+ GPU activities:   21.47%  11.5934s      3301  3.5121ms  3.4560ms  4.8247ms  cuda_fdtd_curlE(float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float, float, float, float, float, float, int, int, int, int, int, int)
+                   21.00%  11.3392s      3301  3.4351ms  3.3582ms  5.4086ms  cuda_fdtd_curlH(float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float*, float, float, float, float, float, float, int, int, int, int, int, int)
+                   14.95%  8.07114s      3301  2.4451ms  2.2912ms  3.7809ms  cuda_fdtd_update_E(float*, float*, float*, float*, float*, float*, float*, float*, float*, int, int, int, float)
+                   11.48%  6.19826s      3301  1.8777ms  1.7759ms  3.1461ms  cuda_dtft_emf(float2*, float2*, float*, int, int, int, int, int, int)
+                   11.01%  5.94660s      3301  1.8015ms  1.7170ms  2.7286ms  cuda_fdtd_update_H(float*, float*, float*, float*, float*, float*, float, int, int, int)
+                    7.16%  3.86615s     29709  130.13us  102.79us  985.57us  void composite_2way_fft<unsigned int=576, unsigned int=8, unsigned int=8, padding_t=1, twiddle_t=0, loadstore_modifier_t=2, unsigned int=9, layout_t=1, unsigned int, float>(kernel_arguments_t<unsigned int>)
+                    5.11%  2.75920s     29709  92.874us  80.576us  1.0691ms  void composite_2way_fft<unsigned int=576, unsigned int=6, unsigned int=1, padding_t=0, twiddle_t=0, loadstore_modifier_t=2, unsigned int=16, layout_t=0, unsigned int, float>(kernel_arguments_t<unsigned int>)
+                    2.89%  1.56005s     13204  118.15us  111.11us  1.1795ms  cuda_airwave_bc_scale_FH(float2*, float2*, int, int)
+                    1.88%  1.01344s     13204  76.752us  73.376us  485.99us  [CUDA memcpy DtoD]
+                    1.20%  650.54ms      6602  98.536us  92.512us  684.90us  cuda_airwave_bc_scale_FE(float2*, float*, int, int)
+                    0.69%  374.63ms      9903  37.830us  36.416us  903.78us  cuda_airwave_bc_copy(float2*, float*, int, int, int, int)
+                    0.66%  358.98ms     19806  18.124us  4.6080us  492.39us  cuda_airwave_bc_back2emf(float*, float2*, int, int, int, float)
+                    0.27%  146.75ms         6  24.458ms  21.449ms  27.399ms  [CUDA memcpy DtoH]
+                    0.14%  77.052ms      3301  23.342us  22.944us  26.016us  cuda_inject_electric_source(int*, int*, int*, float*, float*, float*, int*, int*, int*, float*, float*, float*, float*, float*, float*, float*, float*, float*, int*, float, float, float, float, int, int, int, int, int, int, int, int)
+                    0.03%  13.997ms      3301  4.2400us  3.7440us  8.2880us  cuda_inject_magnetic_source(int*, int*, int*, float*, float*, float*, int*, int*, int*, float*, float*, float*, float*, float*, float*, int*, float, float, float, float, int, int, int, int, int, int, int, int)
+                    0.02%  10.932ms        27  404.90us  1.1840us  2.8186ms  [CUDA memcpy HtoD]
+                    0.01%  7.1433ms        31  230.43us  2.3680us  852.71us  [CUDA memset]
+                    0.00%  153.67us        34  4.5190us  3.9040us  5.1520us  cuda_check_convergence(int*, float2*, float2*, int*)
+      API calls:   93.95%  51.4650s    132074  389.67us  2.9000us  5.4351ms  cudaLaunchKernel
+                    4.61%  2.52327s     13237  190.62us  3.8960us  27.752ms  cudaMemcpy
+                    0.77%  422.36ms         1  422.36ms  422.36ms  422.36ms  cudaEventSynchronize
+                    0.40%  220.19ms        64  3.4405ms  3.1690us  178.92ms  cudaFree
+                    0.23%  126.85ms        63  2.0134ms  2.0460us  122.70ms  cudaMalloc
+                    0.02%  8.5513ms     59418     143ns     102ns  16.319us  cudaGetErrorString
+                    0.01%  6.4355ms     29716     216ns     163ns  18.739us  cudaGetLastError
+                    0.01%  4.8094ms         1  4.8094ms  4.8094ms  4.8094ms  cudaFreeHost
+                    0.00%  468.52us       199  2.3540us     122ns  184.77us  cuDeviceGetAttribute
+                    0.00%  397.43us         2  198.71us  49.836us  347.59us  cuDeviceGetName
+                    0.00%  394.58us         1  394.58us  394.58us  394.58us  cudaHostAlloc
+                    0.00%  310.95us         2  155.47us  132.71us  178.24us  cuDeviceTotalMem
+                    0.00%  188.44us        31  6.0780us  3.1650us  77.340us  cudaMemset
+                    0.00%  175.09us         1  175.09us  175.09us  175.09us  cudaGetDeviceProperties
+                    0.00%  26.369us         2  13.184us  1.0270us  25.342us  cudaEventDestroy
+                    0.00%  26.197us         2  13.098us     837ns  25.360us  cudaEventCreate
+                    0.00%  13.304us         1  13.304us  13.304us  13.304us  cudaEventElapsedTime
+                    0.00%  10.821us         2  5.4100us  4.4880us  6.3330us  cudaEventRecord
+                    0.00%  7.3450us         1  7.3450us  7.3450us  7.3450us  cuDeviceGetPCIBusId
+                    0.00%  7.2620us         2  3.6310us  2.3400us  4.9220us  cudaSetDevice
+                    0.00%  6.8610us        10     686ns     279ns  1.7930us  cudaGetDevice
+                    0.00%  2.8430us         1  2.8430us  2.8430us  2.8430us  cuInit
+                    0.00%  1.9240us         4     481ns     210ns  1.1790us  cuDeviceGetCount
+                    0.00%  1.3000us         3     433ns     172ns     740ns  cuDeviceGet
+                    0.00%     601ns         2     300ns     277ns     324ns  cuDeviceGetUuid
+                    0.00%     529ns         1     529ns     529ns     529ns  cuDriverGetVersion
