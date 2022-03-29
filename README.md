@@ -14,8 +14,9 @@ Software dependencies: MPI [1], FFTW [2], CUDA [3]
 
 Nature of problem: Land/Marine Controlled-source electromagnetics (CSEM)
 
-Solution method: High-order finite-dfference time-domain (FDTD) on non-uniform grid by fictious
-wave domain transformation
+Solution method: High-order finite-dfference time-domain (FDTD) on staggered non-uniform grid by fictious wave domain transformation
+
+Governing equation: 1st order diffusive Maxwell equation
 
 
 
