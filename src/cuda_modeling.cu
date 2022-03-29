@@ -604,10 +604,12 @@ void cuda_modeling(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *in
   cudaEventDestroy(start);
   cudaEventDestroy(stop);
 
+  /*
   if(emf->verb) {
     t0 = t_curlH + t_injectE + t_updateE
       + t_curlE + t_injectH + t_updateH
       + t_airwave + t_dtft + t_conv;
+
     FILE *fp = fopen("time_info.txt", "w");
     fprintf(fp, "curlE   \t %e\n", t_curlE);
     fprintf(fp, "injectH \t %e\n", t_injectH);
@@ -635,7 +637,9 @@ void cuda_modeling(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *in
     printf(" convergence check:       %e s\n", t_conv);
     printf(" Total modeling time:     %e s\n", mstimer*1.e-3);
     printf("------------------------------------------------\n");
-  }
+    }
+  */
+
   cudaMemcpy(&emf->fwd_E1[0][0][0][0], &d_fwd_E1[0], emf->nfreq*emf->n123pad*sizeof(cuFloatComplex), cudaMemcpyDeviceToHost);
   cudaMemcpy(&emf->fwd_E2[0][0][0][0], &d_fwd_E2[0], emf->nfreq*emf->n123pad*sizeof(cuFloatComplex), cudaMemcpyDeviceToHost);
   cudaMemcpy(&emf->fwd_E3[0][0][0][0], &d_fwd_E3[0], emf->nfreq*emf->n123pad*sizeof(cuFloatComplex), cudaMemcpyDeviceToHost);
