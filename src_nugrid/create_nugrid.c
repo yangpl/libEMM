@@ -2,7 +2,7 @@
  * determine the optimal ratio q by root finding using fixed point iteration 
  *--------------------------------------------------------------------
  *
- *   Copyright (c) 2020, Harbin Institute of Technology, China
+ *   Copyright (c) 2020-2022, Harbin Institute of Technology, China
  *   Author: Pengliang Yang
  *   E-mail: ypl.2100@gmail.com
  *   Homepage: https://yangpl.wordpress.com

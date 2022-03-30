@@ -5,7 +5,7 @@
  *        time-domain method on a nonuniform grid, Geophysics
  *--------------------------------------------------------------------
  *
- *   Copyright (c) 2020, Harbin Institute of Technology, China
+ *   Copyright (c) 2020-2022, Harbin Institute of Technology, China
  *   Author: Pengliang Yang
  *   E-mail: ypl.2100@gmail.com
  *   Homepage: https://yangpl.wordpress.com
@@ -82,7 +82,7 @@ int main(int argc, char* argv[])
   printf("    Welcome to 3D CSEM modeling using FDTD           \n");
   printf("            Author: Pengliang Yang                   \n");
   printf("            E-mail: ypl.2100@gmail.com               \n");
-  printf("  Copyright (c) 2020. All rights reserved. \n");
+  printf("  Copyright (c) 2020-2022. All rights reserved. \n");
   printf("=====================================================\n");
 
   emf = (emf_t *)malloc(sizeof(emf_t));
