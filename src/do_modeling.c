@@ -96,11 +96,11 @@ void do_modeling(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *inte
     if(emf->verb) t0 = MPI_Wtime();
     for(ic=0; ic<emf->nchrec; ++ic) {
       if     (strcmp(emf->chrec[ic],"Ex")==0) dtft_emf(emf, it, emf->E1, emf->fwd_E1);
-      else if(strcmp(emf->chrec[ic],"Ey")==0) dtft_emf(emf, it, emf->E1, emf->fwd_E2);
-      else if(strcmp(emf->chrec[ic],"Ez")==0) dtft_emf(emf, it, emf->E1, emf->fwd_E3);
-      else if(strcmp(emf->chrec[ic],"Hx")==0) dtft_emf(emf, it, emf->E1, emf->fwd_H1);
-      else if(strcmp(emf->chrec[ic],"Hy")==0) dtft_emf(emf, it, emf->E1, emf->fwd_H2);
-      else if(strcmp(emf->chrec[ic],"Hz")==0) dtft_emf(emf, it, emf->E1, emf->fwd_H3);
+      else if(strcmp(emf->chrec[ic],"Ey")==0) dtft_emf(emf, it, emf->E2, emf->fwd_E2);
+      else if(strcmp(emf->chrec[ic],"Ez")==0) dtft_emf(emf, it, emf->E3, emf->fwd_E3);
+      else if(strcmp(emf->chrec[ic],"Hx")==0) dtft_emf(emf, it, emf->H1, emf->fwd_H1);
+      else if(strcmp(emf->chrec[ic],"Hy")==0) dtft_emf(emf, it, emf->H2, emf->fwd_H2);
+      else if(strcmp(emf->chrec[ic],"Hz")==0) dtft_emf(emf, it, emf->H3, emf->fwd_H3);
     }
     if(emf->verb) t_dtft += MPI_Wtime()-t0;
 
