@@ -14,7 +14,7 @@
 void sanity_check(emf_t *emf)
 {
   int i, i1, i2, i3, i3_;
-  float tmp, tmp1,tmp2,xi,Rmax,cfl;
+  float tmp, tmp1,tmp2,eta,Rmax,cfl;
   float D1, D2, D3, s3, t3;
 
   /*----------------------------------------------------------------------------------*/
@@ -52,7 +52,7 @@ void sanity_check(emf_t *emf)
   D2 /= emf->d2;
   D3 /= emf->d3;
   
-  xi = 0;
+  eta = 0;
   for(i3=0; i3<emf->n3; ++i3){
     i3_ = i3+emf->nbe;
     if(emf->nugrid){//adapt the value in case of non-uniform grid
@@ -80,7 +80,7 @@ void sanity_check(emf_t *emf)
 
 	tmp = 0.5*sqrt(D1*D1 + D2*D2 + D3*D3);
 	tmp *= emf->vmax;
-	if(tmp>xi) xi = tmp;
+	if(tmp>eta) eta = tmp;
       }
     }
   }
@@ -89,9 +89,9 @@ void sanity_check(emf_t *emf)
   /*------------------------------------------------------------------------*/
   /* Stage 2: determine the optimal dt and nt automatically                 */
   /*------------------------------------------------------------------------*/
-  if(!getparfloat("dt", &emf->dt)) emf->dt = 0.99/xi;
+  if(!getparfloat("dt", &emf->dt)) emf->dt = 0.99/eta;
   /* temporal sampling, determine dt by stability condition if not provided */
-  cfl = emf->dt*xi;
+  cfl = emf->dt*eta;
   if(emf->verb) printf("cfl=%g\n", cfl); 
   if(cfl > 1.0) err("CFL condition not satisfied!");
   emf->freqmax = emf->vmin/(emf->Glim*MIN(MIN(emf->d1,emf->d2),emf->d3));
