@@ -10,7 +10,7 @@ Programming language: C, CUDA, Fortran, Shell
 
 Operating System: Linux
 
-Software dependencies: MPI [1], FFTW [2], CUDA [3]
+Software dependencies: MPI, FFTW, CUDA (optional)
 
 Nature of problem: Land/Marine Controlled-source electromagnetics (CSEM)
 
