@@ -33,40 +33,40 @@ Code structure:
 
 * run_bathy_2d: Appliation example in 3D model of 2D structure with seafloor bathymetry
 
-Run the code:
-=============
+Instructions to run
+===================
 
-1. Compile the code：
-cd src;
-make (to compile with mpicc)
-or
-make GPU=1 (to comipile with mpicc and CUDA)
+1. Compile the code:
+    cd src;
+    make (to compile with mpicc)
+    or
+    make GPU=1 (to comipile with mpicc and CUDA)
 
-2. Running reproducible examples:
+2. Running reproducible examples
 
-Example 1: run_1d
-cd run_1d;
-bash run.sh
+    Example 1: run_1d
+    cd run_1d;
+    bash run.sh
+    
 
+    To plot the result, use:
+    python3 plot_emdata.py
+    
+    Example 2: run_bathy_2d
+    cd run_bathy_2d
+    bash run.sh
+    
 
-To plot the result, use:
-python3 plot_emdata.py
-
-Example 2: run_bathy_2d
-cd run_bathy_2d
-bash run.sh
-
-
-To plot the result，use:
-python3 plot_cmp_libEMM_mare2dem.py
-python3 plot_emdata.py
-
-NB: the input files may be generated prior to running. The resistivity files and nonuniform grid in binary format will be generated in src_nugrid:
-cd src_nugrid;
-make
-./main
-One may need to copy rho11, rho22, rho33 and x3nu into /run_1d and /run_bathy_2d.
-
+    To plot the result，use:
+    python3 plot_cmp_libEMM_mare2dem.py
+    python3 plot_emdata.py
+    
+    NB: the input files may be generated prior to running. The resistivity files and nonuniform grid in binary format will be generated in src_nugrid:
+    cd src_nugrid;
+    make
+    ./main
+    One may need to copy rho11, rho22, rho33 and x3nu into /run_1d and /run_bathy_2d.
+    
 
 
 Acknowledgement:
