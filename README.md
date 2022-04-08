@@ -61,7 +61,7 @@ Instructions to run
     python3 plot_cmp_libEMM_mare2dem.py
     python3 plot_emdata.py
     
-    NB: the input files may be generated prior to running. The resistivity files and nonuniform grid in binary format will be generated in src_nugrid:
+NB: the input files may be generated prior to running. The resistivity files and nonuniform grid in binary format will be generated in src_nugrid:
     cd src_nugrid;
     make
     ./main
