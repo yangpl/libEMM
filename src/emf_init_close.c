@@ -6,6 +6,7 @@
  *   E-mail: ypl.2100@gmail.com
  *   Homepage: https://yangpl.wordpress.com
  *--------------------------------------------------------------------*/
+#include <assert.h>
 #include "cstd.h"
 #include "emf.h"
 #include "acqui.h"
@@ -44,6 +45,14 @@ void emf_init(emf_t *emf)
   /* emf->rd of Bessel I0 function for sinc */
   if(!getparint("ne", &emf->ne)) emf->ne = 6;
   /* number of extra layers between inner emf->model and PML */
+  assert(emf->n1>0);
+  assert(emf->n2>0);
+  assert(emf->n3>0);
+  assert(emf->nb>0);
+  assert(emf->d1>0);
+  assert(emf->d2>0);
+  assert(emf->d3>0);
+  assert(emf->ne>=emf->rd);//make sure ne>=rd
   
   emf->n123 = emf->n1*emf->n2*emf->n3;
   emf->nbe = emf->nb+emf->ne;/* number of PML layers + extra 2 points due to 4-th order FD */
@@ -67,6 +76,7 @@ void emf_init(emf_t *emf)
   getparfloat("freqs", emf->freqs);/* a list of frequencies separated by comma */
   qsort(emf->freqs, emf->nfreq, sizeof(float), cmpfunc);/*sort frequencies in ascending order*/
   for(ifreq=0; ifreq<emf->nfreq; ++ifreq) {
+    assert(emf->freqs[ifreq]>0);//all frequencies must be positive values
     emf->omegas[ifreq]=2.*PI*emf->freqs[ifreq];
     if(emf->verb) printf("freq[%d]=%g Hz\n", ifreq+1, emf->freqs[ifreq]);
   }
