@@ -1,0 +1,322 @@
+\documentclass[10pt]{article}
+
+\usepackage{xcolor}
+\usepackage{natbib}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{graphicx}
+\usepackage{url}
+\usepackage[top=2.5cm,bottom=2.5cm,left=2.5cm,right=2.5cm]{geometry}
+
+\usepackage{times}
+\usepackage{graphicx}              % image 
+\graphicspath{{Figures/}}
+
+
+\title{libEMM - A 3D Controlled-source ElectroMagnetic Modeling library}
+\author{Pengliang Yang\\
+  Harbin Institute of Technology, China\\
+Email: ypl.2100@gmail.com} 
+
+\begin{document}
+
+\maketitle
+
+
+\begin{abstract}
+  This is the mannual for \verb|libEMM| - a software to do 3D controlled-source electromagnetic (CSEM) modelling. Because diffusive Maxwell equation, (in original form has to be discretized in time-domain with stringent stability condition and a large number of time steps), has been transformed into wave domain using fictitious transform \citep{Mittet_2010_HFD}, \verb|libEMM| can therefore compute the frequency domain CSEM response extremely efficiently because multiple frequencies can be integrated on the fly during time stepping in one go. Thanks to the time-domain formulation, \verb|libEMM| is capable to handle the modelling in the resistivity model of very large size, since the EM fields will be updated at each time step on the same memory unit. The mannual explains how to install, compile and run the code.
+\end{abstract}
+
+\tableofcontents
+
+\newpage
+
+\section{Software overview}
+
+\subsection{Software dependencies}
+
+\verb|libEMM| assumes that the following softwares have been installed and placed in a path recognizable by the \texttt{Makefile} (you might need to modify a bit to make it working properly).
+\begin{itemize}
+\item FFTW;
+\item MPI (OpenMPI or MPICH);
+\item CUDA programming environment if needed.
+\end{itemize}
+
+\subsection{Structure}
+
+\verb|libEMM| has a simple yet standard structure:
+\begin{itemize}
+ \item \verb|src|: the folder includes all source files in C and CUDA programming language (.c and .cu files);
+ 
+ \item \verb|include|: the folder includes all the header files (.h files);
+ 
+ \item \verb|doc|: the folder stores the mannual for \verb|libEMM|;
+ 
+ \item \verb|bin|: the folder is used to store the executable after the compilation;
+ 
+ \item \verb|run_1d|: a 3D CSEM modelling example to compare the modelled solution with Dipole1D using a 1D layered resistivity model;
+ 
+ \item \verb|run_bathy_2d|: a 3D CSEM modelling example to compare the modelled solution with MARE2DEM using model of 2D geometry;
+ 
+ \item \verb|src_nugrid_homogenization|: the folder prepares the resistivity models, the nonuniform grid in x-, y- and z- directions for \verb|run_1d| and \verb|run_bathy_2d| in binary format.
+\end{itemize}
+
+
+\section{Get the code and compile}
+
+
+One must install FFTW and MPI before start to use \verb|libEMM|. On Ubuntu system, one can use
+\begin{verbatim}
+sudo apt-get install libfftw3-dev
+\end{verbatim}
+to install FFTW, and then use
+\begin{verbatim}
+sudo apt-get install libopenmpi-dev
+\end{verbatim}
+to install OpenMPI. Other MPI implementations such as OpenMPI are also good to use.
+
+Installation of CUDA is optional. If you want to try GPU modelling, you are referred to Nvidia websites on installation issues \url{https://docs.nvidia.com/cuda/cuda-quick-start-guide/index.html}.
+
+One can check out the code from github:
+\begin{verbatim}
+git clone git@github.com:yangpl/libEMM.git
+\end{verbatim}
+You will find the software \verb|libEMM|. Go to the folder \verb|libEMM/src| by
+\begin{verbatim}
+cd libEMM;
+cd src;
+\end{verbatim}
+Then you can compile the code via
+\begin{verbatim}
+make
+\end{verbatim}
+This command will compile the code using \verb|mpicc|. You might need to edit the \verb|Makefile| if the path of FFTW and MPI in your computer/cluster is not at default location. 
+Then, the executable \texttt{fdtd} will be generated in the directory \texttt{/bin}. 
+
+Inside \texttt{/src}, to compile the code when CUDA has been installed properly, we type:
+\begin{verbatim}
+ make GPU=1
+\end{verbatim}
+Again, the executable \texttt{emf} will be generated in the directory \texttt{/bin}. 
+
+
+\section{How to run}
+
+\paragraph{Run} There is a running template to follow: \verb|run_1d| which runs forward modeling of electromagnetic wave modeling and outputs the simulated EM data in frequency domain as ASCII files \verb|emf_xxxx.txt|.
+\begin{enumerate}
+ \item 
+One may need to first prepare the input resistivity files \verb|rho11|, \verb|rho22|, \verb|rho33| in \verb|src_nugrid| by compiling the code and generting them (\verb|make|; \verb|./main|). Copy the generated files into \verb|run_1d|.
+
+\item In \verb|run_1d|, we can create the acquisition files by compiling the code in Fortran:
+\begin{verbatim}
+ gfortran create_acquisition.f90 -o main;
+ ./main
+\end{verbatim}
+One can edit the Fortran source code to create  different survey layout sheet.
+
+\item Using the above inputs, we create a shell script \verb|run.sh| with relevant parameters in the following:
+\begin{verbatim}
+n1=101
+n2=101
+n3=101
+d1=200 #100m
+d2=200 #100m
+d3=50 #100m
+
+
+export OMP_NUM_THREADS=8
+mpirun -n 1 ../bin/fdtd \
+       mode=0 \
+       fsrc=sources.txt \
+       frec=receivers.txt \
+       fsrcrec=src_rec_table.txt \
+       frho11=rho11 \
+       frho22=rho22 \
+       frho33=rho33 \
+       chsrc=Ex \
+       chrec=Ex \
+       x1min=-10000 x1max=10000 \
+       x2min=-10000 x2max=10000 \
+       x3min=0 x3max=5000 \
+       n1=$n1 n2=$n2 n3=$n3 \
+       d1=$d1 d2=$d2 d3=$d3 \
+       nb=12 ne=6 \
+       freqs=0.25,0.75,1.25 \
+       rd=2 
+\end{verbatim}
+One may modify the parameters such as the number of process in parallel.
+
+\end{enumerate}
+
+
+
+
+All the parameters are placed in a text file \verb|run_good_src_rec.sh|, which will be executed in shell by \verb|bash run_good_src_rec.sh|.
+
+\paragraph{Plot} Inside the folder, the ASCII sript \verb|plot_survey_layout.gnu| will plot out the source-receiver acquisition geometry in x-y plane, based on the acquisition files \verb|sources.txt|, \verb|receivers.txt|.
+
+After the modelling, we can plot out the CSEM data for visualization purposes. This is achieved by python script \verb|plot_emdata.py|.
+
+\section{Suggestion to your own modelling jobs}
+
+Use the two running templates and modify the parameters and the codes to prepare acquisition files and input models, nonuniform grid!
+
+\section{Other important details}
+
+\subsection{Design}
+
+The desgin of this \verb|libc_emf| software has been heavily influenced by my personal experience working with \texttt{Seismic Unix} package, \texttt{Madagascar} package and the development of full waveform inversion code \verb|TOYxDAC_Time| (the software I developed at SEISCOPE consortium in France). 
+\begin{itemize}
+\item Since \texttt{Seismic Unix} has been used and validated by the geophysicists in more than 3 decades, I feel confident to borrow many routines for my own software development. I grouped some of the key functions in \texttt{Seismic Unix} into one file - \verb|/src/cstd.c|, which shares the common macro definitions of some frequently used variables in the header file \verb|/include/cstd.h|. 
+
+\item I used the idea from \texttt{Madagascar} to develop code module, which allows the C code sharing some similarities to Fortran \verb|module|. Many functions with suffix \verb|xxx_init()| and \verb|xxx_close()| serve as constructor and destructor, which makes the C module equivalent to C++ class. 
+
+\item The parallelization of the code is organized using MPI in a shot/source independent manner, to maximize the scaling of the code to achieve best efficiency as possible. This idea is borrowed from \verb|TOYxDAC_Time| software, based on the physical understanding of the acquisition settings. The downside of this parallelism is that I always assume the number of cores/processors available is larger than the actual number of sources deployed in the simulation. This can be a restriction for the resources in the company cluster where the cluster is too small. Also, the job queuing time might be long in case freely available number of cores is smaller than the number of sources. The use of reciprocal modeling allows to do simulation by switching the source and the receiver, thus helps to mitigate this issue because in practical CSEM acquisition the number of sources is usually much larger than the number of receivers.
+\end{itemize}
+
+\subsection{Macros}
+The following macros are included in \verb|cstd.h|.
+\begin{itemize}
+\item \verb|ABS|: absolute value of the input value;
+\item \verb|MAX|: the maximum value between two;
+\item \verb|MIN|: the minimum value between two;
+\item \verb|NINT|: the nearest integer of the input value;
+\item \verb|SGN|: the sign of the input value;
+\end{itemize}
+These macros are very useful and can be widely used in the code development once the header is included.
+
+\subsection{Memory management}
+The file \verb|alloc.c| provides the interfaces to dynamically allocate multidimensional arrays in C language for different types of data (\verb|char|, \verb|int|, \verb|float|, \verb|double| and \verb|complex|). There are the most frequently used routines for the memory allocation to do scientific computation:
+\begin{verbatim}
+  ...
+  int *alloc1int (size_t n1);
+  int *realloc1int (int *v, size_t n1);
+  int **alloc2int (size_t n1, size_t n2);
+  int ***alloc3int (size_t n1, size_t n2, size_t n3);
+  int ****alloc4int (size_t n1, size_t n2, size_t n3, size_t n4);
+  int *****alloc5int (size_t n1, size_t n2, size_t n3, size_t n4, size_t n5);
+  ...
+
+  float *alloc1float (size_t n1);
+  float *realloc1float (float *v, size_t n1);
+  float **alloc2float (size_t n1, size_t n2);
+  float ***alloc3float (size_t n1, size_t n2, size_t n3);
+  float ****alloc4float (size_t n1, size_t n2, size_t n3, size_t n4);
+  float *****alloc5float (size_t n1, size_t n2, size_t n3, size_t n4, size_t n5);
+  float ******alloc6float (size_t n1, size_t n2, size_t n3, size_t n4, size_t n5, size_t n6);
+  ...
+
+  double *alloc1double (size_t n1);
+  double *realloc1double (double *v, size_t n1);
+  double **alloc2double (size_t n1, size_t n2);
+  double ***alloc3double (size_t n1, size_t n2, size_t n3);
+  ...
+
+  double complex *alloc1complex (size_t n1);
+  double complex *realloc1complex (double complex *v, size_t n1);
+  double complex **alloc2complex (size_t n1, size_t n2);
+  double complex ***alloc3complex (size_t n1, size_t n2, size_t n3);
+  double complex ****alloc4complex (size_t n1, size_t n2, size_t n3, size_t n4);
+  ...
+\end{verbatim}
+Keep in mind that these routines allocates consecutive memory units from the address of the first element \verb|p[0][0][0]| to the last \verb|p[n3-1][n2-1][n1-1]|, which gives the best possible computational efficiency. These not only makes memory allocation very convenient but also allows the use of square brackets for multidimensional arrays in a similar way as static arrays. 
+
+As an example, we can allocate a 3D array of size 100*200*300 and initialize it in the following:
+\begin{verbatim}
+  int n1 = 100;
+  int n2 = 200;
+  int n3 = 300;
+  float ***p;
+  p = alloc3float(n1, n2, n3);
+  memset(p[0][0], 0, n1*n2*n3*sizeof(float));
+\end{verbatim}
+Indexing an element of this 3D array is easy: 
+\begin{verbatim}
+  for(i3=0; i3<n3; i3++)
+      for(i2=0; i2<n2; i2++)
+          for(i1=0; i1<n1; i1++)
+              p[i3][i2][i1] = ...;
+\end{verbatim}
+To free the 3D array, we use:
+\begin{verbatim}
+  free(**p); free(*p); free(p); // or use: free3float(p);
+\end{verbatim}
+
+\subsection{Parameter parsing}
+
+The parameter parser is borrowed from \texttt{Seismic Unix} and grouped in the file \verb|par.c|. It is very easy to fetch parameters of different types using the routines from this parameter list:
+\begin{verbatim}
+  void initargs(int argc, char **argv);//initialize the code and store parameter list
+  int getparint(char *name, int *p);//fetch a parameter using a name of int type
+  int getparfloat(char *name, float *p);//fetch a parameter using a name of float type
+  int getpardouble(char *name, double *p);//fetch a parameter using a name of double type
+  int getnparint(int n, char *name, int *p);//fetch comma separated ints
+  int getnparfloat(int n, char *name, float *p);//fetch comma separated floats
+  int getnpardouble(int n, char *name, double *p);//fetch comma separated doubles
+  int countparval(char *name);//count the number of parameter values based on given name
+\end{verbatim}
+The following shows an example of usage for the above routines:
+\begin{verbatim}
+  ...
+  if(!getparint("n1", &n1)) n1=100; 
+  /* number of cells in axis-1, nx */
+  if(!getparfloat("d1", &d1)) d1=100.;
+  /* grid spacing in 1st dimension, dx */
+  ...
+\end{verbatim}
+Be aware that if no parameter is supplied from parameter list, the default value is set by the code itself to avoid crashing of the simulation.
+
+It is also important to mention that \texttt{Madagascar} has the same functionity to manipulate the memory and parse the input parameters, although the routines may be slightly different.
+
+\subsection{Read more}
+
+There are a number of papers coming out during the development of this software:
+\begin{itemize}
+ \item Boost the efficiency of 3D CSEM modelling using graphics processing units \citep{Yang_2021_GPU_CSEM};
+ \item CSEM modelling using high order FDTD on the nonuniform grid \citep{Yang_2022_HFD_NUgrid,Yang2022HFDNU};
+ \item Efficient 3D CSEM inversion in fictitious wave domain \citep{Yang_2022_EAGE_Efficient}
+\end{itemize}
+
+
+
+\newpage
+\bibliographystyle{apalike}
+\newcommand{\SortNoop}[1]{}
+\begin{thebibliography}{}
+
+\bibitem[Mittet, 2010]{Mittet_2010_HFD}
+Mittet, R. (2010).
+\newblock High-order finite-difference simulations of marine {CSEM} surveys
+  using a correspondence principle for wave and diffusion fields.
+\newblock {\em Geophysics}, 75(1):F33--F50.
+
+\bibitem[Yang, 2021]{Yang_2021_GPU_CSEM}
+Yang, P. (2021).
+\newblock Boost the efficiency of 3{D} {CSEM} modelling using graphics
+  processing units.
+\newblock In {\em 82nd EAGE Annual Conference \& Exhibition}, volume 2021,
+  pages 1--5. European Association of Geoscientists \& Engineers.
+
+\bibitem[Yang, 2022]{Yang_2022_EAGE_Efficient}
+Yang, P. (2022).
+\newblock {Efficient 3D CSEM inversion in fictitious wave domain}.
+\newblock In {\em 83rd EAGE Annual Conference \& Exhibition}, volume Accepted.
+  European Association of Geoscientists \& Engineers.
+
+\bibitem[Yang and Mittet, 2022a]{Yang2022HFDNU}
+Yang, P. and Mittet, R. (2022a).
+\newblock Controlled-source electromagnetics modelling using high order
+  finite-difference time-domain method on a nonuniform grid.
+\newblock {\em Geophysics}, submitted.
+
+\bibitem[Yang and Mittet, 2022b]{Yang_2022_HFD_NUgrid}
+Yang, P. and Mittet, R. (2022b).
+\newblock {CSEM modelling using high order FDTD on the nonuniform grid}.
+\newblock In {\em 83rd EAGE Annual Conference \& Exhibition}, volume Accepted.
+  European Association of Geoscientists \& Engineers.
+
+\end{thebibliography}
+
+
+\end{document}
