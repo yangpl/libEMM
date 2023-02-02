@@ -91,7 +91,7 @@ Then you can compile the code via
 \begin{verbatim}
 make
 \end{verbatim}
-This command will compile the code using \verb|mpicc|. You might need to edit the \verb|Makefile| if the path of FFTW and MPI in your computer/cluster is not at default location. 
+This command will compile the code using \verb|mpicc| and create an executable running with CPUs by default. You might need to edit the \verb|Makefile| if the path of FFTW and MPI in your computer/cluster is not at default location. 
 Then, the executable \texttt{fdtd} will be generated in the directory \texttt{/bin}. 
 
 Inside \texttt{/src}, to compile the code when CUDA has been installed properly, we type:
@@ -274,7 +274,7 @@ It is also important to mention that \texttt{Madagascar} has the same functionit
 There are a number of papers coming out during the development of this software:
 \begin{itemize}
  \item Boost the efficiency of 3D CSEM modelling using graphics processing units \citep{Yang_2021_GPU_CSEM};
- \item CSEM modelling using high order FDTD on the nonuniform grid \citep{Yang_2022_HFD_NUgrid,Yang2022HFDNU};
+ \item CSEM modelling using high order FDTD on the nonuniform grid \citep{Yang_2022_HFD_NUgrid,Yang_2023_HFDNU};
  \item Efficient 3D CSEM inversion in fictitious wave domain \citep{Yang_2022_EAGE_Efficient}
 \end{itemize}
 
@@ -282,6 +282,8 @@ There are a number of papers coming out during the development of this software:
 
 \newpage
 \bibliographystyle{apalike}
+%\bibliography{../biblioseiscope.bib,../bibliopyang.bib,../biblioothers.bib}
+
 \newcommand{\SortNoop}[1]{}
 \begin{thebibliography}{}
 
@@ -301,22 +303,21 @@ Yang, P. (2021).
 \bibitem[Yang, 2022]{Yang_2022_EAGE_Efficient}
 Yang, P. (2022).
 \newblock {Efficient 3D CSEM inversion in fictitious wave domain}.
-\newblock In {\em 83rd EAGE Annual Conference \& Exhibition}, volume Accepted.
-  European Association of Geoscientists \& Engineers.
+\newblock In {\em 83rd EAGE Annual Conference \& Exhibition}, volume 2022,
+  pages 1--5. European Association of Geoscientists \& Engineers.
 
-\bibitem[Yang and Mittet, 2022a]{Yang2022HFDNU}
-Yang, P. and Mittet, R. (2022a).
+\bibitem[Yang and Mittet, 2022]{Yang_2022_HFD_NUgrid}
+Yang, P. and Mittet, R. (2022).
+\newblock {CSEM modelling using high order FDTD on the nonuniform grid}.
+\newblock In {\em 83rd EAGE Annual Conference \& Exhibition}, volume 2022,
+  pages 1--5. European Association of Geoscientists \& Engineers.
+
+\bibitem[Yang and Mittet, 2023]{Yang_2023_HFDNU}
+Yang, P. and Mittet, R. (2023).
 \newblock Controlled-source electromagnetics modelling using high order
   finite-difference time-domain method on a nonuniform grid.
-\newblock {\em Geophysics}, submitted.
-
-\bibitem[Yang and Mittet, 2022b]{Yang_2022_HFD_NUgrid}
-Yang, P. and Mittet, R. (2022b).
-\newblock {CSEM modelling using high order FDTD on the nonuniform grid}.
-\newblock In {\em 83rd EAGE Annual Conference \& Exhibition}, volume Accepted.
-  European Association of Geoscientists \& Engineers.
+\newblock {\em Geophysics}, 88(2):1--15.
 
 \end{thebibliography}
-
 
 \end{document}
