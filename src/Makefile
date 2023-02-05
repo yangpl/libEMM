@@ -10,8 +10,9 @@ OBJ = $(SRC:.c=.o)
 
 ifeq ($(GPU),1)
     CFLAGS += -DGPU
-    
-    #assume CUDA is installed in the path $(CUDA_PATH)
+
+    #assume CUDA is installed in the path $(CUDA_PATH), you may need to adapt the following line depending on where you install CUDA
+    CUDA_PATH = /usr/local/cuda
     NC = nvcc
     cuda_flags = -O3 -ccbin=$(CC) -arch=sm_50 #without arch=sm_XX may lead to compilation errors, XX should be modified according to your hardware
     cuda_inc = -I../include -I$(CUDA_PATH)/include
