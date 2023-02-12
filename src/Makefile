@@ -12,7 +12,7 @@ ifeq ($(GPU),1)
     CFLAGS += -DGPU
 
     # CUDA_PATH needs to be adapted depending on where CUDA is installed
-    #CUDA_PATH=/usr (if you install it via: sudo apt-get install nvidia-cuda-toolbox, cuda version is v10.1)
+    #CUDA_PATH=/usr (if you install it via: sudo apt-get install nvidia-cuda-toolbox, cuda version is v10.1, this also installs nvprof)
     #CUDA_PATH=/usr/local/cuda (if you install it via: sudo apt-get install cuda, latest version of cuda is installed in this way)
     CUDA_PATH = /usr
     NC = nvcc
