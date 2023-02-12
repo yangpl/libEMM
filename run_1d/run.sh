@@ -10,7 +10,8 @@ d3=50 #100m
 
 export OMP_NUM_THREADS=8
 #time mpirun -n 1 ../bin/fdtd \
-nvprof --log-file profiling.txt ../bin/fdtd \
+#nvprof --log-file profiling.txt
+../bin/fdtd \
        mode=0 \
        fsrc=sources.txt \
        frec=receivers.txt \
