@@ -86,3 +86,16 @@ NB: the input files may be generated prior to running. The resistivity files and
 Acknowledgement:
 ================
 The initiative to start this ficititious wave domain modelling project begins when I was a scientist working in Electromagnetic Geoservices ASA (EMGS). I developed some modeling codes in my free time, but they never work correctly.  After I left EMGS in 2020, I restarted everything from scratch using all things I learned from Madagascar open software development. It took me more than one year to make it work correctly: the solution now matches the semi-analytic one. During the development, I benefit from the discussion with Rune Mittet, in order to understand his method.
+
+Please give a credit to the following publication if any component of libEMM is used in your research:
+
+@Article{Yang_2023_libEMM,
+author = {Pengliang Yang},
+title = {{libEMM: A fictious wave domain 3D CSEM modelling library bridging sequential and parallel GPU implementation}},
+journal = {Computer Physics Communications},
+volume = {288},
+pages = {108745},
+year = {2023},
+issn = {0010-4655},
+doi = {https://doi.org/10.1016/j.cpc.2023.108745},
+}
