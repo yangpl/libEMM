@@ -1,0 +1,28 @@
+from rsf.proj import *
+
+
+nx=91
+ny=91
+nz=71
+n1=101
+n2=101
+n3=101
+
+Flow('rhonew',None,
+	'''
+	sfregrid3d fmodin=rho33 fx1nu=x1nu fx2nu=x2nu fx3nu=x3nu
+	nx=%d ny=%d nz=%d n1=%d n2=%d n3=%d |
+	sfput label1=X label2=Y label3=Z unit1=m unit2=m unit3=m
+	'''%(nx,ny,nz,n1,n2,n3))
+
+iz=65
+ix=50
+iy=50
+Result('rhonew',
+       '''
+       byte allpos=y gainpanel=all clip=2 |
+       sftransp plane=13 | sftransp plane=23 |
+       grey3 flat=n frame1=%d frame2=%d frame3=%d color=j mean=y title="Rtrue" 
+       '''%(iz,ix,iy))
+
+End()
