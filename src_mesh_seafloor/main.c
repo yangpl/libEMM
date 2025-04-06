@@ -1,4 +1,13 @@
-/* Pengliang Yang, Nov. 20, 2021 */
+/* Pengliang Yang, Nov. 20, 2021
+
+References:
+1. R. Mittet, Small-scale medium variations with high-order finite-difference and
+pseudospectral schemes, GEOPHYSICS, VOL. 86, NO. 5 P. T387–T399
+2. Erik F.M. Koene,1 Jens Wittsten2,3 and Johan O.A. Robertsson. 
+Finite-difference modelling of 2-D wave propagation in the vicinity of
+dipping interfaces: a comparison of anti-aliasing and equivalent
+medium approaches, Geophys. J. Int. (2022) 229, 70–96
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
