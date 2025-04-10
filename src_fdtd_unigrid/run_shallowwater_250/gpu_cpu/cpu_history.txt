@@ -1,0 +1,67 @@
+omp=1
+-------------- elapsed time --------------------
+    compute curlE: 2.469823e+02 s
+    inject magnetic source: 2.043424e-03 s
+    update magnetic field: 8.615623e+01 s
+    compute curlH: 2.247243e+02 s
+    inject electric source: 6.892280e-03 s
+    update electric field: 8.510836e+01 s
+    DFT EM field: 7.986012e+01 s
+    convergence check: 2.176370e-01 s
+    Total modeling time: 7.230579e+02 s
+------------------------------------------------
+
+real	12m3.718s
+user	12m2.740s
+sys	0m0.172s
+
+omp=2
+-------------- elapsed time --------------------
+    compute curlE: 1.662332e+02 s
+    inject magnetic source: 3.631689e-03 s
+    update magnetic field: 6.636305e+01 s
+    compute curlH: 1.480953e+02 s
+    inject electric source: 8.916830e-03 s
+    update electric field: 5.752320e+01 s
+    DFT EM field: 5.292012e+01 s
+    convergence check: 2.172966e-01 s
+    Total modeling time: 4.913647e+02 s
+------------------------------------------------
+
+real	8m12.029s
+user	12m35.556s
+sys	0m0.352s
+
+omp=4
+-------------- elapsed time --------------------
+    compute curlE: 1.295395e+02 s
+    inject magnetic source: 2.299752e-03 s
+    update magnetic field: 5.795399e+01 s
+    compute curlH: 1.131048e+02 s
+    inject electric source: 8.089123e-03 s
+    update electric field: 4.624283e+01 s
+    DFT EM field: 4.453447e+01 s
+    convergence check: 2.144251e-01 s
+    Total modeling time: 3.916003e+02 s
+------------------------------------------------
+
+real	6m32.263s
+user	15m15.919s
+sys	0m0.765s
+
+omp=8
+-------------- elapsed time --------------------
+    compute curlE: 1.113536e+02 s
+    inject magnetic source: 2.422857e-03 s
+    update magnetic field: 5.742001e+01 s
+    compute curlH: 1.012150e+02 s
+    inject electric source: 8.832930e-03 s
+    update electric field: 4.453177e+01 s
+    DFT EM field: 4.274753e+01 s
+    convergence check: 2.406332e-01 s
+    Total modeling time: 3.575198e+02 s
+------------------------------------------------
+
+real	5m58.215s
+user	26m15.017s
+sys	0m3.619s

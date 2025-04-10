@@ -1,0 +1,146 @@
+Architecture:          x86_64
+CPU op-mode(s):        32-bit, 64-bit
+Byte Order:            Little Endian
+CPU(s):                32
+On-line CPU(s) list:   0-31
+Thread(s) per core:    1
+Core(s) per socket:    16
+Socket(s):             2
+NUMA node(s):          2
+Vendor ID:             GenuineIntel
+CPU family:            6
+Model:                 62
+Model name:            Intel(R) Xeon(R) CPU E5-2650 v2 @ 2.60GHz
+Stepping:              4
+CPU MHz:               2600.000
+BogoMIPS:              5200.00
+Hypervisor vendor:     VMware
+Virtualization type:   full
+L1d cache:             32K
+L1i cache:             32K
+L2 cache:              256K
+L3 cache:              20480K
+NUMA node0 CPU(s):     0-15
+NUMA node1 CPU(s):     16-31
+
+
+omp=1
+-------------- elapsed time --------------------
+    compute curlE: 2.958704e+02 s
+    inject magnetic source: 2.943277e-03 s
+    update magnetic field: 1.516475e+02 s
+    compute curlH: 2.733543e+02 s
+    inject electric source: 7.245064e-03 s
+    update electric field: 1.209875e+02 s
+    DFT EM field: 9.378238e+01 s
+    convergence check: 2.382476e-01 s
+    Total modeling time: 9.358905e+02 s
+------------------------------------------------
+
+real	15m36.194s
+user	15m35.553s
+sys	0m0.965s
+
+omp=2
+-------------- elapsed time --------------------
+    compute curlE: 2.088452e+02 s
+    inject magnetic source: 3.309727e-03 s
+    update magnetic field: 1.327013e+02 s
+    compute curlH: 1.916654e+02 s
+    inject electric source: 8.843184e-03 s
+    update electric field: 9.060102e+01 s
+    DFT EM field: 6.659505e+01 s
+    convergence check: 2.404380e-01 s
+    Total modeling time: 6.906606e+02 s
+------------------------------------------------
+
+real	11m31.002s
+user	17m8.214s
+sys	0m1.741s
+
+omp=4
+-------------- elapsed time --------------------
+    compute curlE: 1.613484e+02 s
+    inject magnetic source: 3.353596e-03 s
+    update magnetic field: 1.268607e+02 s
+    compute curlH: 1.440206e+02 s
+    inject electric source: 8.399963e-03 s
+    update electric field: 7.384613e+01 s
+    DFT EM field: 4.672201e+01 s
+    convergence check: 2.539916e-01 s
+    Total modeling time: 5.530636e+02 s
+------------------------------------------------
+
+real	9m13.379s
+user	19m45.379s
+sys	0m2.876s
+
+omp=8
+-------------- elapsed time --------------------
+    compute curlE: 1.045559e+02 s
+    inject magnetic source: 3.305912e-03 s
+    update magnetic field: 1.224257e+02 s
+    compute curlH: 9.407499e+01 s
+    inject electric source: 7.761002e-03 s
+    update electric field: 6.296476e+01 s
+    DFT EM field: 3.314368e+01 s
+    convergence check: 2.698040e-01 s
+    Total modeling time: 4.174459e+02 s
+------------------------------------------------
+
+real	6m57.754s
+user	21m25.411s
+sys	0m4.027s
+
+omp=16
+-------------- elapsed time --------------------
+    compute curlE: 7.526045e+01 s
+    inject magnetic source: 4.966736e-03 s
+    update magnetic field: 1.308406e+02 s
+    compute curlH: 7.108115e+01 s
+    inject electric source: 7.826567e-03 s
+    update electric field: 6.877674e+01 s
+    DFT EM field: 2.298273e+01 s
+    convergence check: 3.068082e-01 s
+    Total modeling time: 3.692613e+02 s
+------------------------------------------------
+
+real	6m9.582s
+user	31m38.365s
+sys	0m8.517s
+
+omp=32
+-------------- elapsed time --------------------
+    compute curlE: 5.643365e+01 s
+    inject magnetic source: 3.066063e-03 s
+    update magnetic field: 1.575348e+02 s
+    compute curlH: 5.355054e+01 s
+    inject electric source: 8.138657e-03 s
+    update electric field: 6.557972e+01 s
+    DFT EM field: 2.679295e+01 s
+    convergence check: 3.143351e-01 s
+    Total modeling time: 3.602172e+02 s
+------------------------------------------------
+
+real	6m0.558s
+user	58m1.445s
+sys	0m41.569s
+
+GPU
+-------------- elapsed time --------------------
+    compute curlE: 1.814154e+00 s
+    inject magnetic source: 1.527622e-02 s
+    update magnetic field: 3.463412e+00 s
+    compute curlH: 2.416798e+00 s
+    inject electric source: 1.375645e-02 s
+    update electric field: 6.491812e+00 s
+    DFT EM field: 9.833440e-03 s
+    convergence check: 3.839466e+00 s
+    Total modeling time: 1.806451e+01 s
+------------------------------------------------
+Elapsed time: 18.2947 (s)
+
+real	0m18.968s
+user	0m13.884s
+sys	0m4.801s
+
