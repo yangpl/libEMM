@@ -1,0 +1,29 @@
+Tolerance (%):                    1  ! target solution accuracy (not guaranteed, but the code tries hard to get there).
+
+!
+! CSEM settings:
+!
+Transmitters per group:           5    ! set this <= 10
+CSEM receivers per group:         5    ! adjust to maximize cluster usage
+CSEM frequencies per group:       1     ! this should be 1, or no more than the number of freqs per decade if you want to lighten the load
+Use mesh coarsening:              yes   ! Use a moving vertical window to simplify the mesh to the left and right of the transmitters
+                                        ! and receivers in a given data subset. Only inversion parameters are coarsened and this is only done for CSEM
+                                        ! modeling tasks. This can greatly speed up modeling of very long profiles of data.
+
+!
+! MT settings:
+!
+MT receivers per group:           40    ! adjust to maximize cluster usage 
+MT frequencies per group:         1     ! this should be 1, or no more than the number of freqs per decade if you want to lighten the load
+Use MT scattered field:           no    ! Uncomment and set this to yes to use a scattered field MT formulation. This is useful for getting accurate deepwater resistive 
+                                        ! lithosphere seafloor MT responses, but MARE2DEM may run a bit more slowly. 
+
+Print adaptive:                   yes   ! yes prints the adaptive refinement iteration stats
+Print decomposition:              yes   ! yes prints the parallel decomposition settings
+
+!
+! Advice:
+!
+! See the Parallel Decomposition terminal output when running MARE2DEM.
+! Try adjusting the receivers per group so that the total number of refinement groups
+! is at least as large as the number of MPI processors on your computing system.

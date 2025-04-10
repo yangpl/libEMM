@@ -1,0 +1,2 @@
+           x           y	z       azimuth           tilt           isrc
+           0           0   275.000000               0           0           1

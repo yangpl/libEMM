@@ -1,20 +1,21 @@
-CC=gcc # mpicc
+CC=mpicc # Intel compiler
 CFLAGS= -g -Wall 
 
+
 BIN = .
-LIB = -lm 
-INC = -I. 
+LIB =  -lm -lmpi -fopenmp -lpthread -lfftw3
+INC = -I.
 SRC = $(wildcard *.c)
 OBJ = $(SRC:.c=.o)
 
 
-all: clean main
+all: clean fdtd
 
-%.o: %.c 
+%.o: %.c
 	$(CC) $(CFLAGS) -c $^ -o $@ $(INC) $(LIB)
 
-main:	$(OBJ)
-	$(CC) $(CFLAGS) -o $(BIN)/main $(OBJ) $(LIB)
+fdtd:	$(OBJ)
+	$(CC) $(CFLAGS) -o $(BIN)/fdtd $(OBJ) $(LIB)
 
 clean:
 	find . -name "*.o"   -exec rm {} \;
@@ -22,6 +23,6 @@ clean:
 	find . -name "*.bck" -exec rm {} \;
 	find . -name "*~"    -exec rm {} \;
 	find . -name "\#*"   -exec rm {} \;
-	rm -f $(OBJ) main
+	rm -f $(OBJ) fdtd *.bin snapshot* stf
 
 
