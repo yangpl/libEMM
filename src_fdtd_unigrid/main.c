@@ -51,7 +51,6 @@ typedef struct {
   float *freqs, *omegas;//a list of frequencies
   float f0;//dominant frequency for the wavelet
   float *stf;//source time function
-  float *hw1, *hw2; //hann window to filter out high freq in air wave manipulation
 
   float ***rho11, ***rho22, ***rho33;//normal and transverse resistivities
   float rhomin, rhomax; //mimum and maximum resistivity
@@ -360,8 +359,8 @@ void sanity_check(emf_t *emf)
   }/* automatically determine nt using maximum offset if not provided */
   if(iproc==0){
     printf("[rhomin, rhomax]=[%g, %g] Ohm-m\n", emf->rhomin, emf->rhomax);
-    printf("[vmin, vmax]=[%g, %g] m/s\n", emf->vmin, emf->vmax);
-    printf("order=%d, Glim=%g, freq<=%g Hz can be simulated\n", emf->rd, Glim, freqmax);
+    printf("wavespeed [vmin, vmax]=[%g, %g] m/s\n", emf->vmin, emf->vmax);
+    printf("FD order=%d, Glim=%g ppw, freq<=%g Hz can be simulated\n", emf->rd, Glim, freqmax);
     printf("dt=%g s\n",  emf->dt);
     printf("nt=%d\n",  emf->nt);
   }
