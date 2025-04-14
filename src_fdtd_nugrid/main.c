@@ -16,7 +16,7 @@
 int iproc, nproc, ierr;
 
 #define PI 3.14159265358979323846264
-#define invmu0  (1./(4.*PI*1e-7))
+#define mu0  (4.*PI*1e-7)
 
 typedef struct {
   int nsrc;/* number of sources on each processor, default=1 */
@@ -77,7 +77,7 @@ typedef struct {
   float ***uni_H1, ***uni_H2, ***uni_E1, ***uni_E2;//interpolated fields on uniform grid
   
   float dx1_start, dx1_end, dx2_start, dx2_end, dx3_start, dx3_end;
-  float *a1, *b1, *a2, *b2, *a3, *b3;
+  float *apml, *bpml;
   
   float ***E1, ***E2, ***E3;
   float ***H1, ***H2, ***H3;
@@ -114,7 +114,7 @@ int cmpfunc(const void *a, const void *b) { return ( *(int*)a - *(int*)b ); }
 void emf_init(emf_t *emf)
 {
   char *frho11, *frho22, *frho33, *fx1nu, *fx2nu, *fx3nu;//, *fhx, *fhz;
-  FILE *fp=NULL;
+  FILE *fp;
   int ifreq, ic, istat, i1, i2, i3;
   float tmp;
 
@@ -133,7 +133,6 @@ void emf_init(emf_t *emf)
   if(!getparint("rd3", &emf->rd3)) emf->rd3=2; 
   /* half length of FD stencil */
   emf->rd = MAX(MAX(emf->rd1, emf->rd2), emf->rd3);
-  if(!getparint("airwave", &emf->airwave)) emf->airwave=1; 
   /* simulate airwave on top boundary */
   if(!getparfloat("f0", &emf->f0)) emf->f0=0.5;
   emf->omega0 = 2.*PI*emf->f0;
@@ -182,7 +181,7 @@ void emf_init(emf_t *emf)
     printf("Active source channels:");
     for(ic=0; ic<emf->nch_src; ++ic) printf(" %s", emf->ch_src[ic]);
     printf("\n");
-    printf("Active recever channels:");
+    printf("Active receiver channels:");
     for(ic=0; ic<emf->nchrec; ++ic) printf(" %s", emf->ch_rec[ic]);
     printf("\n");
   }
@@ -355,14 +354,13 @@ void extend_model_init(emf_t *emf)
     }
   }
 
-  if(emf->airwave==1){
-    /* air water interface: sigma = 0.5*(sigma_air+sigma_water)=0.5*sigma_water */
-    i3=emf->nbe;
-    for(i2=0; i2<emf->n2pad; i2++){
-      for(i1=0; i1<emf->n1pad; i1++){
-  	emf->inveps11[i3][i2][i1] *= 2;
-  	emf->inveps22[i3][i2][i1] *= 2;
-      }
+
+  /* air water interface: sigma = 0.5*(sigma_air+sigma_water)=0.5*sigma_water */
+  i3=emf->nbe;
+  for(i2=0; i2<emf->n2pad; i2++){
+    for(i1=0; i1<emf->n1pad; i1++){
+      emf->inveps11[i3][i2][i1] *= 2;
+      emf->inveps22[i3][i2][i1] *= 2;
     }
   }
 
@@ -814,8 +812,8 @@ void sanity_check(emf_t *emf)
   emf->rhomax = MAX( MAX(emf->rho11[0][0][0], emf->rho22[0][0][0]), emf->rho33[0][0][0]);
   emf->rhomin = MIN( MIN(emf->rho11[0][0][0], emf->rho22[0][0][0]), emf->rho33[0][0][0]);
   /* sigma=2*omega0*eps --> inveps=2*omega0*rho */
-  emf->vmin = sqrt(2.*emf->omega0*emf->rhomin*invmu0);
-  emf->vmax = sqrt(2.*emf->omega0*emf->rhomax*invmu0);
+  emf->vmin = sqrt(2.*emf->omega0*emf->rhomin/mu0);
+  emf->vmax = sqrt(2.*emf->omega0*emf->rhomax/mu0);
   kappa = 0;
   for(i3=0; i3<emf->n3; ++i3){
     i3_ = i3+emf->nbe;
@@ -828,8 +826,8 @@ void sanity_check(emf_t *emf)
 	tmp2 = MAX( MAX(emf->rho11[i3][i2][i1], emf->rho22[i3][i2][i1]), emf->rho33[i3][i2][i1]);
 	if(emf->rhomin>tmp1)  emf->rhomin = tmp1;
 	if(emf->rhomax<tmp2)  emf->rhomax = tmp2;
-	emf->vmin = sqrt(2.*emf->omega0*emf->rhomin*invmu0);
-	emf->vmax = sqrt(2.*emf->omega0*emf->rhomax*invmu0);
+	emf->vmin = sqrt(2.*emf->omega0*emf->rhomin/mu0);
+	emf->vmax = sqrt(2.*emf->omega0*emf->rhomax/mu0);
 
 	s1 = 0;
 	s2 = 0;
@@ -886,7 +884,6 @@ void sanity_check(emf_t *emf)
     printf("dt=%g s\n",  emf->dt);
     printf("nt=%d\n",  emf->nt);
   }
-
 }
 
 void cpml_init(emf_t *emf)
@@ -897,14 +894,9 @@ void cpml_init(emf_t *emf)
 
   /* by default, we choose: kappa=1, alpha=PI*emf->f0 for CPML */
   float alpha=PI*emf->f0; /* alpha>0 makes CPML effectively attenuates evanescent waves */
-  //const float Rc = 1e-5; /* theoretic reflection coefficient for PML */
 
-  emf->a1 = alloc1float(emf->nb);
-  emf->a2 = alloc1float(emf->nb);
-  emf->a3 = alloc1float(emf->nb);
-  emf->b1 = alloc1float(emf->nb);
-  emf->b2 = alloc1float(emf->nb);
-  emf->b3 = alloc1float(emf->nb);
+  emf->apml = alloc1float(emf->nb);
+  emf->bpml = alloc1float(emf->nb);
 
   //L=emf->nb*(emf->x1nu[1]- emf->x1nu[0]);
   damp0= 349.1; //-3.*emf->vmax*logf(Rc)/(2.*L);
@@ -912,39 +904,15 @@ void cpml_init(emf_t *emf)
     x=(float)(emf->nb-i1)/emf->nb;
     damp = damp0*x*x; /* damping profile in direction 1, sigma/epsilon0 */
     // damp = damp0*(1.0-cos(0.5*PI*x));
-    emf->b1[i1] = expf(-(damp+alpha)*emf->dt);
-    emf->a1[i1] = damp*(emf->b1[i1]-1.0)/(damp+alpha);
-  }
-
-  //L= emf->nb*(emf->x2nu[1]- emf->x2nu[0]);    
-  //damp0 =-3.*emf->vmax*logf(Rc)/(2.*L);
-  for(i2=0; i2<emf->nb; ++i2)    {
-    x=(float)(emf->nb-i2)/emf->nb;
-    damp = damp0*x*x;/* damping profile in direction 2, sigma/epsilon0 */
-    //damp = damp0*(1.0-cos(0.5*PI*x));
-    emf->b2[i2] = expf(-(damp+alpha)*emf->dt);
-    emf->a2[i2] = damp*(emf->b2[i2]-1.0)/(damp+alpha);
-  }
-
-  //L=emf->nb*(emf->x3nu[1]- emf->x3nu[0]);    
-  //damp0=-3.*emf->vmax*logf(Rc)/(2.*L);
-  for(i3=0; i3<emf->nb; ++i3)    {
-    x=(float)(emf->nb-i3)/emf->nb;
-    damp = damp0*x*x;/* damping profile in direction 3, sigma/epsilon0 */
-    //damp = damp0*(1.0-cos(0.5*PI*x));
-    emf->b3[i3] = expf(-(damp+alpha)*emf->dt);
-    emf->a3[i3] = damp*(emf->b3[i3]-1.0)/(damp+alpha);
+    emf->bpml[i1] = expf(-(damp+alpha)*emf->dt);
+    emf->apml[i1] = damp*(emf->bpml[i1]-1.0)/(damp+alpha);
   }
 }
 
 void cpml_close(emf_t *emf)
 {
-  free(emf->a1);
-  free(emf->a2);
-  free(emf->a3);
-  free(emf->b1);
-  free(emf->b2);
-  free(emf->b3);
+  free(emf->apml);
+  free(emf->apml);
 }
 
 
@@ -1039,7 +1007,7 @@ void nufdtd_curlE(emf_t *emf)
 {
   int i1min = emf->rd1-1;
   int i2min = emf->rd2-1;
-  int i3min = emf->airwave?emf->nbe:emf->rd3-1; 
+  int i3min = emf->nbe;
   int i1max = emf->n1pad-1-emf->rd1;
   int i2max = emf->n2pad-1-emf->rd2;
   int i3max = emf->n3pad-1-emf->rd3;
@@ -1146,41 +1114,41 @@ void nufdtd_curlE(emf_t *emf)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  emf->memD1E3[i3][i2][i1] = emf->b1[i1]*emf->memD1E3[i3][i2][i1] + emf->a1[i1]*D1E3;
-	  emf->memD1E2[i3][i2][i1] = emf->b1[i1]*emf->memD1E2[i3][i2][i1] + emf->a1[i1]*D1E2;
+	  emf->memD1E3[i3][i2][i1] = emf->bpml[i1]*emf->memD1E3[i3][i2][i1] + emf->apml[i1]*D1E3;
+	  emf->memD1E2[i3][i2][i1] = emf->bpml[i1]*emf->memD1E2[i3][i2][i1] + emf->apml[i1]*D1E2;
 	  D1E3 += emf->memD1E3[i3][i2][i1];
 	  D1E2 += emf->memD1E2[i3][i2][i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
 	  k1 = j1+emf->nb;
-	  emf->memD1E3[i3][i2][k1] = emf->b1[j1]*emf->memD1E3[i3][i2][k1] + emf->a1[j1]*D1E3;
-	  emf->memD1E2[i3][i2][k1] = emf->b1[j1]*emf->memD1E2[i3][i2][k1] + emf->a1[j1]*D1E2;
+	  emf->memD1E3[i3][i2][k1] = emf->bpml[j1]*emf->memD1E3[i3][i2][k1] + emf->apml[j1]*D1E3;
+	  emf->memD1E2[i3][i2][k1] = emf->bpml[j1]*emf->memD1E2[i3][i2][k1] + emf->apml[j1]*D1E2;
 	  D1E3 += emf->memD1E3[i3][i2][k1];
 	  D1E2 += emf->memD1E2[i3][i2][k1];
 	}
 	if(i2<emf->nb){
-	  emf->memD2E3[i3][i2][i1] = emf->b2[i2]*emf->memD2E3[i3][i2][i1] + emf->a2[i2]*D2E3;
-	  emf->memD2E1[i3][i2][i1] = emf->b2[i2]*emf->memD2E1[i3][i2][i1] + emf->a2[i2]*D2E1;
+	  emf->memD2E3[i3][i2][i1] = emf->bpml[i2]*emf->memD2E3[i3][i2][i1] + emf->apml[i2]*D2E3;
+	  emf->memD2E1[i3][i2][i1] = emf->bpml[i2]*emf->memD2E1[i3][i2][i1] + emf->apml[i2]*D2E1;
 	  D2E3 += emf->memD2E3[i3][i2][i1];
 	  D2E1 += emf->memD2E1[i3][i2][i1];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
 	  k2 = j2+emf->nb;
-	  emf->memD2E3[i3][k2][i1] = emf->b2[j2]*emf->memD2E3[i3][k2][i1] + emf->a2[j2]*D2E3;
-	  emf->memD2E1[i3][k2][i1] = emf->b2[j2]*emf->memD2E1[i3][k2][i1] + emf->a2[j2]*D2E1;
+	  emf->memD2E3[i3][k2][i1] = emf->bpml[j2]*emf->memD2E3[i3][k2][i1] + emf->apml[j2]*D2E3;
+	  emf->memD2E1[i3][k2][i1] = emf->bpml[j2]*emf->memD2E1[i3][k2][i1] + emf->apml[j2]*D2E1;
 	  D2E3 += emf->memD2E3[i3][k2][i1];
 	  D2E1 += emf->memD2E1[i3][k2][i1];
 	}
 	if(i3<emf->nb){
-	  emf->memD3E2[i3][i2][i1] = emf->b3[i3]*emf->memD3E2[i3][i2][i1] + emf->a3[i3]*D3E2;
-	  emf->memD3E1[i3][i2][i1] = emf->b3[i3]*emf->memD3E1[i3][i2][i1] + emf->a3[i3]*D3E1;
+	  emf->memD3E2[i3][i2][i1] = emf->bpml[i3]*emf->memD3E2[i3][i2][i1] + emf->apml[i3]*D3E2;
+	  emf->memD3E1[i3][i2][i1] = emf->bpml[i3]*emf->memD3E1[i3][i2][i1] + emf->apml[i3]*D3E1;
 	  D3E2 += emf->memD3E2[i3][i2][i1];
 	  D3E1 += emf->memD3E1[i3][i2][i1];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
 	  k3 = j3+emf->nb;
-	  emf->memD3E2[k3][i2][i1] = emf->b3[j3]*emf->memD3E2[k3][i2][i1] + emf->a3[j3]*D3E2;
-	  emf->memD3E1[k3][i2][i1] = emf->b3[j3]*emf->memD3E1[k3][i2][i1] + emf->a3[j3]*D3E1;
+	  emf->memD3E2[k3][i2][i1] = emf->bpml[j3]*emf->memD3E2[k3][i2][i1] + emf->apml[j3]*D3E2;
+	  emf->memD3E1[k3][i2][i1] = emf->bpml[j3]*emf->memD3E1[k3][i2][i1] + emf->apml[j3]*D3E1;
 	  D3E2 += emf->memD3E2[k3][i2][i1];
 	  D3E1 += emf->memD3E1[k3][i2][i1];
 	}
@@ -1200,11 +1168,11 @@ void nufdtd_update_H(emf_t *emf)
 
   int i1min = 0;
   int i2min = 0;
-  int i3min = emf->airwave?emf->nbe:0;
+  int i3min = emf->nbe;
   int i1max = emf->n1pad-1;
   int i2max = emf->n2pad-1;
   int i3max = emf->n3pad-1;
-  float factor = emf->dt*invmu0;
+  float factor = emf->dt/mu0;
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none)				\
@@ -1228,7 +1196,7 @@ void nufdtd_curlH(emf_t *emf)
 {
   int i1min = emf->rd1;
   int i2min = emf->rd2;
-  int i3min = emf->airwave?emf->nbe:emf->rd3;
+  int i3min = emf->nbe;
   int i1max = emf->n1pad-emf->rd1;
   int i2max = emf->n2pad-emf->rd2;
   int i3max = emf->n3pad-emf->rd3;
@@ -1335,41 +1303,41 @@ void nufdtd_curlH(emf_t *emf)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  emf->memD1H3[i3][i2][i1] = emf->b1[i1]*emf->memD1H3[i3][i2][i1] + emf->a1[i1]*D1H3;
-	  emf->memD1H2[i3][i2][i1] = emf->b1[i1]*emf->memD1H2[i3][i2][i1] + emf->a1[i1]*D1H2;
+	  emf->memD1H3[i3][i2][i1] = emf->bpml[i1]*emf->memD1H3[i3][i2][i1] + emf->apml[i1]*D1H3;
+	  emf->memD1H2[i3][i2][i1] = emf->bpml[i1]*emf->memD1H2[i3][i2][i1] + emf->apml[i1]*D1H2;
 	  D1H3 += emf->memD1H3[i3][i2][i1];
 	  D1H2 += emf->memD1H2[i3][i2][i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
 	  k1 = j1+emf->nb;
-	  emf->memD1H3[i3][i2][k1] = emf->b1[j1]*emf->memD1H3[i3][i2][k1] + emf->a1[j1]*D1H3;
-	  emf->memD1H2[i3][i2][k1] = emf->b1[j1]*emf->memD1H2[i3][i2][k1] + emf->a1[j1]*D1H2;
+	  emf->memD1H3[i3][i2][k1] = emf->bpml[j1]*emf->memD1H3[i3][i2][k1] + emf->apml[j1]*D1H3;
+	  emf->memD1H2[i3][i2][k1] = emf->bpml[j1]*emf->memD1H2[i3][i2][k1] + emf->apml[j1]*D1H2;
 	  D1H3 += emf->memD1H3[i3][i2][k1];
 	  D1H2 += emf->memD1H2[i3][i2][k1];
 	}
 	if(i2<emf->nb){
-	  emf->memD2H3[i3][i2][i1] = emf->b2[i2]*emf->memD2H3[i3][i2][i1] + emf->a2[i2]*D2H3;
-	  emf->memD2H1[i3][i2][i1] = emf->b2[i2]*emf->memD2H1[i3][i2][i1] + emf->a2[i2]*D2H1;
+	  emf->memD2H3[i3][i2][i1] = emf->bpml[i2]*emf->memD2H3[i3][i2][i1] + emf->apml[i2]*D2H3;
+	  emf->memD2H1[i3][i2][i1] = emf->bpml[i2]*emf->memD2H1[i3][i2][i1] + emf->apml[i2]*D2H1;
 	  D2H3 += emf->memD2H3[i3][i2][i1];
 	  D2H1 += emf->memD2H1[i3][i2][i1];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
 	  k2 = j2+emf->nb;
-	  emf->memD2H3[i3][k2][i1] = emf->b2[j2]*emf->memD2H3[i3][k2][i1] + emf->a2[j2]*D2H3;
-	  emf->memD2H1[i3][k2][i1] = emf->b2[j2]*emf->memD2H1[i3][k2][i1] + emf->a2[j2]*D2H1;
+	  emf->memD2H3[i3][k2][i1] = emf->bpml[j2]*emf->memD2H3[i3][k2][i1] + emf->apml[j2]*D2H3;
+	  emf->memD2H1[i3][k2][i1] = emf->bpml[j2]*emf->memD2H1[i3][k2][i1] + emf->apml[j2]*D2H1;
 	  D2H3 += emf->memD2H3[i3][k2][i1];
 	  D2H1 += emf->memD2H1[i3][k2][i1];
 	}
 	if(i3<emf->nb){
-	  emf->memD3H2[i3][i2][i1] = emf->b3[i3]*emf->memD3H2[i3][i2][i1] + emf->a3[i3]*D3H2;
-	  emf->memD3H1[i3][i2][i1] = emf->b3[i3]*emf->memD3H1[i3][i2][i1] + emf->a3[i3]*D3H1;
+	  emf->memD3H2[i3][i2][i1] = emf->bpml[i3]*emf->memD3H2[i3][i2][i1] + emf->apml[i3]*D3H2;
+	  emf->memD3H1[i3][i2][i1] = emf->bpml[i3]*emf->memD3H1[i3][i2][i1] + emf->apml[i3]*D3H1;
 	  D3H2 += emf->memD3H2[i3][i2][i1];
 	  D3H1 += emf->memD3H1[i3][i2][i1];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
 	  k3 = j3+emf->nb;
-	  emf->memD3H2[k3][i2][i1] = emf->b3[j3]*emf->memD3H2[k3][i2][i1] + emf->a3[j3]*D3H2;
-	  emf->memD3H1[k3][i2][i1] = emf->b3[j3]*emf->memD3H1[k3][i2][i1] + emf->a3[j3]*D3H1;
+	  emf->memD3H2[k3][i2][i1] = emf->bpml[j3]*emf->memD3H2[k3][i2][i1] + emf->apml[j3]*D3H2;
+	  emf->memD3H1[k3][i2][i1] = emf->bpml[j3]*emf->memD3H1[k3][i2][i1] + emf->apml[j3]*D3H1;
 	  D3H2 += emf->memD3H2[k3][i2][i1];
 	  D3H1 += emf->memD3H1[k3][i2][i1];
 	}
@@ -1389,7 +1357,7 @@ void nufdtd_update_E(emf_t *emf)
 
   int i1min = 0;
   int i2min = 0;
-  int i3min = emf->airwave?emf->nbe:0;
+  int i3min = emf->nbe;
   int i1max = emf->n1pad-1;
   int i2max = emf->n2pad-1;
   int i3max = emf->n3pad-1;
@@ -1412,11 +1380,7 @@ void nufdtd_update_E(emf_t *emf)
 }
 
 
-/* find the index k in x[] such that x[k]<= val <x[k+1] 
- *
- * Copyright (c) 2020 Pengliang Yang. All rights reserved.
- * Email: ypl.2100@gmail.com
- */
+/* find the index k in x[] such that x[k]<= val <x[k+1] */
 int find_index(int n, float *x, float val)
 {
   /*assume x[] has been sorted ascendingly */
@@ -1444,12 +1408,12 @@ fftw_plan fft_airwave, ifft_airwave;
 int fft_next_fast_size(int n)
 {
   int m;
-  int p = 2*n;
     
   /* m = 1; */
   /* while(m<p) m *= 2; */
   /* return m; */
 
+  int p = n;
   while(1) {
     m=p;
     while ( (m%2) == 0 ) m/=2;
@@ -2690,11 +2654,11 @@ int main(int argc, char* argv[])
     nufdtd_curlH(emf);
     inject_electric_src_fwd(acqui, emf, interp_rg, interp_sg, it);
     nufdtd_update_E(emf); 
-    if(emf->airwave) airwave_bc_update_E(emf);      
+    airwave_bc_update_E(emf);      
     
     nufdtd_curlE(emf); 
     nufdtd_update_H(emf); 
-    if(emf->airwave) airwave_bc_update_H(emf);    
+    airwave_bc_update_H(emf);    
     
     dtft_emf(emf, it, adj);
     
@@ -2709,43 +2673,11 @@ int main(int argc, char* argv[])
   sprintf(fname, "emf_%04d.txt", acqui->shot_idx[iproc]);
   write_data(acqui, emf, fname);
 
-  fp = fopen("Gf_Ex", "wb");
-  i2 = emf->n2/2 + emf->nbe;
-  i2_ = i2+ emf->nbe;
-  for(i1=0; i1<emf->n1; ++i1){
-    i1_ = i1+ emf->nbe;
-    for(i3=0; i3<emf->n3; ++i3){
-      i3_ = i3+ emf->nbe;
-
-      tmp = cabs(emf->fwd_E1[0][i3_][i2_][i1_]);
-      tmp = log(tmp)/log(10.);
-      fwrite(&tmp, 1, sizeof(float), fp);
-    }
-  }
-  fclose(fp);
-
-  fp = fopen("Gf_Ez", "wb");
-  i2 = emf->n2/2 + emf->nbe;
-  i2_ = i2+ emf->nbe;
-  for(i1=0; i1<emf->n1; ++i1){
-    i1_ = i1+ emf->nbe;
-    for(i3=0; i3<emf->n3; ++i3){
-      i3_ = i3+ emf->nbe;
-
-      tmp = cabs(emf->fwd_E3[0][i3_][i2_][i1_]);
-      tmp = log(tmp)/log(10.);
-      fwrite(&tmp, 1, sizeof(float), fp);
-    }
-  }
-  fclose(fp);
-
-
   extend_model_close(emf);
   nugrid_close(emf);
   fdtd_close(emf);
   dtft_emf_close(emf, adj);
   airwave_bc_close(emf);
-
 
   emf_close(emf);
   acqui_close(acqui);
