@@ -34,7 +34,7 @@ typedef struct {
   int ncorner;//number of corners converged
 
   float ***inveps11, ***inveps22, ***inveps33;//fictitous domain dielectric permittivity
-  float *a1, *a2, *a3, *b1, *b2, *b3;
+  float *apml, *bpml;
   float ***E1, ***E2, ***E3, ***H1, ***H2, ***H3;
   float ***curlE1, ***curlE2, ***curlE3, ***curlH1, ***curlH2, ***curlH3;
   float ***memD2H3, ***memD3H2, ***memD3H1, ***memD1H3, ***memD1H2, ***memD2H1;

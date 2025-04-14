@@ -240,41 +240,41 @@ void fdtd_curlH(emf_t *emf, int it, int adj)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  emf->memD1H3[i3][i2][i1] = emf->b1[i1]*emf->memD1H3[i3][i2][i1] + emf->a1[i1]*D1H3;
-	  emf->memD1H2[i3][i2][i1] = emf->b1[i1]*emf->memD1H2[i3][i2][i1] + emf->a1[i1]*D1H2;
+	  emf->memD1H3[i3][i2][i1] = emf->bpml[i1]*emf->memD1H3[i3][i2][i1] + emf->apml[i1]*D1H3;
+	  emf->memD1H2[i3][i2][i1] = emf->bpml[i1]*emf->memD1H2[i3][i2][i1] + emf->apml[i1]*D1H2;
 	  D1H3 += emf->memD1H3[i3][i2][i1];
 	  D1H2 += emf->memD1H2[i3][i2][i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
 	  k1 = j1+emf->nb;
-	  emf->memD1H3[i3][i2][k1] = emf->b1[j1]*emf->memD1H3[i3][i2][k1] + emf->a1[j1]*D1H3;
-	  emf->memD1H2[i3][i2][k1] = emf->b1[j1]*emf->memD1H2[i3][i2][k1] + emf->a1[j1]*D1H2;
+	  emf->memD1H3[i3][i2][k1] = emf->bpml[j1]*emf->memD1H3[i3][i2][k1] + emf->apml[j1]*D1H3;
+	  emf->memD1H2[i3][i2][k1] = emf->bpml[j1]*emf->memD1H2[i3][i2][k1] + emf->apml[j1]*D1H2;
 	  D1H3 += emf->memD1H3[i3][i2][k1];
 	  D1H2 += emf->memD1H2[i3][i2][k1];
 	}
 	if(i2<emf->nb){
-	  emf->memD2H3[i3][i2][i1] = emf->b2[i2]*emf->memD2H3[i3][i2][i1] + emf->a2[i2]*D2H3;
-	  emf->memD2H1[i3][i2][i1] = emf->b2[i2]*emf->memD2H1[i3][i2][i1] + emf->a2[i2]*D2H1;
+	  emf->memD2H3[i3][i2][i1] = emf->bpml[i2]*emf->memD2H3[i3][i2][i1] + emf->apml[i2]*D2H3;
+	  emf->memD2H1[i3][i2][i1] = emf->bpml[i2]*emf->memD2H1[i3][i2][i1] + emf->apml[i2]*D2H1;
 	  D2H3 += emf->memD2H3[i3][i2][i1];
 	  D2H1 += emf->memD2H1[i3][i2][i1];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
 	  k2 = j2+emf->nb;
-	  emf->memD2H3[i3][k2][i1] = emf->b2[j2]*emf->memD2H3[i3][k2][i1] + emf->a2[j2]*D2H3;
-	  emf->memD2H1[i3][k2][i1] = emf->b2[j2]*emf->memD2H1[i3][k2][i1] + emf->a2[j2]*D2H1;
+	  emf->memD2H3[i3][k2][i1] = emf->bpml[j2]*emf->memD2H3[i3][k2][i1] + emf->apml[j2]*D2H3;
+	  emf->memD2H1[i3][k2][i1] = emf->bpml[j2]*emf->memD2H1[i3][k2][i1] + emf->apml[j2]*D2H1;
 	  D2H3 += emf->memD2H3[i3][k2][i1];
 	  D2H1 += emf->memD2H1[i3][k2][i1];
 	}
 	if(i3<emf->nb){
-	  emf->memD3H2[i3][i2][i1] = emf->b3[i3]*emf->memD3H2[i3][i2][i1] + emf->a3[i3]*D3H2;
-	  emf->memD3H1[i3][i2][i1] = emf->b3[i3]*emf->memD3H1[i3][i2][i1] + emf->a3[i3]*D3H1;
+	  emf->memD3H2[i3][i2][i1] = emf->bpml[i3]*emf->memD3H2[i3][i2][i1] + emf->apml[i3]*D3H2;
+	  emf->memD3H1[i3][i2][i1] = emf->bpml[i3]*emf->memD3H1[i3][i2][i1] + emf->apml[i3]*D3H1;
 	  D3H2 += emf->memD3H2[i3][i2][i1];
 	  D3H1 += emf->memD3H1[i3][i2][i1];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
 	  k3 = j3+emf->nb;
-	  emf->memD3H2[k3][i2][i1] = emf->b3[j3]*emf->memD3H2[k3][i2][i1] + emf->a3[j3]*D3H2;
-	  emf->memD3H1[k3][i2][i1] = emf->b3[j3]*emf->memD3H1[k3][i2][i1] + emf->a3[j3]*D3H1;
+	  emf->memD3H2[k3][i2][i1] = emf->bpml[j3]*emf->memD3H2[k3][i2][i1] + emf->apml[j3]*D3H2;
+	  emf->memD3H1[k3][i2][i1] = emf->bpml[j3]*emf->memD3H1[k3][i2][i1] + emf->apml[j3]*D3H1;
 	  D3H2 += emf->memD3H2[k3][i2][i1];
 	  D3H1 += emf->memD3H1[k3][i2][i1];
 	}
@@ -467,41 +467,41 @@ void fdtd_curlE(emf_t *emf, int it, int adj)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  emf->memD1E3[i3][i2][i1] = emf->b1[i1]*emf->memD1E3[i3][i2][i1] + emf->a1[i1]*D1E3;
-	  emf->memD1E2[i3][i2][i1] = emf->b1[i1]*emf->memD1E2[i3][i2][i1] + emf->a1[i1]*D1E2;
+	  emf->memD1E3[i3][i2][i1] = emf->bpml[i1]*emf->memD1E3[i3][i2][i1] + emf->apml[i1]*D1E3;
+	  emf->memD1E2[i3][i2][i1] = emf->bpml[i1]*emf->memD1E2[i3][i2][i1] + emf->apml[i1]*D1E2;
 	  D1E3 += emf->memD1E3[i3][i2][i1];
 	  D1E2 += emf->memD1E2[i3][i2][i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
 	  k1 = j1+emf->nb;
-	  emf->memD1E3[i3][i2][k1] = emf->b1[j1]*emf->memD1E3[i3][i2][k1] + emf->a1[j1]*D1E3;
-	  emf->memD1E2[i3][i2][k1] = emf->b1[j1]*emf->memD1E2[i3][i2][k1] + emf->a1[j1]*D1E2;
+	  emf->memD1E3[i3][i2][k1] = emf->bpml[j1]*emf->memD1E3[i3][i2][k1] + emf->apml[j1]*D1E3;
+	  emf->memD1E2[i3][i2][k1] = emf->bpml[j1]*emf->memD1E2[i3][i2][k1] + emf->apml[j1]*D1E2;
 	  D1E3 += emf->memD1E3[i3][i2][k1];
 	  D1E2 += emf->memD1E2[i3][i2][k1];
 	}
 	if(i2<emf->nb){
-	  emf->memD2E3[i3][i2][i1] = emf->b2[i2]*emf->memD2E3[i3][i2][i1] + emf->a2[i2]*D2E3;
-	  emf->memD2E1[i3][i2][i1] = emf->b2[i2]*emf->memD2E1[i3][i2][i1] + emf->a2[i2]*D2E1;
+	  emf->memD2E3[i3][i2][i1] = emf->bpml[i2]*emf->memD2E3[i3][i2][i1] + emf->apml[i2]*D2E3;
+	  emf->memD2E1[i3][i2][i1] = emf->bpml[i2]*emf->memD2E1[i3][i2][i1] + emf->apml[i2]*D2E1;
 	  D2E3 += emf->memD2E3[i3][i2][i1];
 	  D2E1 += emf->memD2E1[i3][i2][i1];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
 	  k2 = j2+emf->nb;
-	  emf->memD2E3[i3][k2][i1] = emf->b2[j2]*emf->memD2E3[i3][k2][i1] + emf->a2[j2]*D2E3;
-	  emf->memD2E1[i3][k2][i1] = emf->b2[j2]*emf->memD2E1[i3][k2][i1] + emf->a2[j2]*D2E1;
+	  emf->memD2E3[i3][k2][i1] = emf->bpml[j2]*emf->memD2E3[i3][k2][i1] + emf->apml[j2]*D2E3;
+	  emf->memD2E1[i3][k2][i1] = emf->bpml[j2]*emf->memD2E1[i3][k2][i1] + emf->apml[j2]*D2E1;
 	  D2E3 += emf->memD2E3[i3][k2][i1];
 	  D2E1 += emf->memD2E1[i3][k2][i1];
 	}
 	if(i3<emf->nb){
-	  emf->memD3E2[i3][i2][i1] = emf->b3[i3]*emf->memD3E2[i3][i2][i1] + emf->a3[i3]*D3E2;
-	  emf->memD3E1[i3][i2][i1] = emf->b3[i3]*emf->memD3E1[i3][i2][i1] + emf->a3[i3]*D3E1;
+	  emf->memD3E2[i3][i2][i1] = emf->bpml[i3]*emf->memD3E2[i3][i2][i1] + emf->apml[i3]*D3E2;
+	  emf->memD3E1[i3][i2][i1] = emf->bpml[i3]*emf->memD3E1[i3][i2][i1] + emf->apml[i3]*D3E1;
 	  D3E2 += emf->memD3E2[i3][i2][i1];
 	  D3E1 += emf->memD3E1[i3][i2][i1];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
 	  k3 = j3+emf->nb;
-	  emf->memD3E2[k3][i2][i1] = emf->b3[j3]*emf->memD3E2[k3][i2][i1] + emf->a3[j3]*D3E2;
-	  emf->memD3E1[k3][i2][i1] = emf->b3[j3]*emf->memD3E1[k3][i2][i1] + emf->a3[j3]*D3E1;
+	  emf->memD3E2[k3][i2][i1] = emf->bpml[j3]*emf->memD3E2[k3][i2][i1] + emf->apml[j3]*D3E2;
+	  emf->memD3E1[k3][i2][i1] = emf->bpml[j3]*emf->memD3E1[k3][i2][i1] + emf->apml[j3]*D3E1;
 	  D3E2 += emf->memD3E2[k3][i2][i1];
 	  D3E1 += emf->memD3E1[k3][i2][i1];
 	}

@@ -14,6 +14,7 @@
 
 fftw_complex *emf_kxky, *emf_kxkyz0;
 fftw_plan fft_airwave, ifft_airwave;
+float *kx, *ky;
 
 
 int fft_next_fast_size(int n)
@@ -42,7 +43,6 @@ void airwave_bc_init(emf_t *emf)
   double dkx, dky, tmp;
   int i1, i2, i3;
   float _Complex tmp1, tmp2;
-  float *kx, *ky;
   float **sqrtkx2ky2;
   
   emf->n1fft = fft_next_fast_size(emf->n1pad);
@@ -107,8 +107,6 @@ void airwave_bc_init(emf_t *emf)
     }
   }
  
-  free(kx);
-  free(ky);
   free2float(sqrtkx2ky2);
  
 }
@@ -118,6 +116,8 @@ void airwave_bc_close(emf_t *emf)
   free3complexf(emf->sH1kxky);
   free3complexf(emf->sH2kxky);
   if(emf->rd>1) free3float(emf->sE12kxky);
+  free(kx);
+  free(ky);
 
   fftw_free(emf_kxky);
   fftw_free(emf_kxkyz0);
@@ -145,6 +145,7 @@ void airwave_bc_update_H(emf_t *emf)
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
 	emf_kxky[i1+emf->n1fft*i2] = emf_kxkyz0[i1+emf->n1fft*i2]*emf->sH1kxky[i3][i2][i1];
+	emf_kxky[i1+emf->n1fft*i2] *= exp(-I*0.5*emf->d1*kx[i1]);
       }
     }
     fftw_execute(ifft_airwave);
@@ -161,6 +162,7 @@ void airwave_bc_update_H(emf_t *emf)
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
 	emf_kxky[i1+emf->n1fft*i2] = emf_kxkyz0[i1+emf->n1fft*i2]*emf->sH2kxky[i3][i2][i1];
+	emf_kxky[i1+emf->n1fft*i2] *= exp(-I*0.5*emf->d2*ky[i2]);
       }
     }
     fftw_execute(ifft_airwave);
@@ -218,7 +220,7 @@ void airwave_bc_update_E(emf_t *emf)
   for(i3=0; i3<emf->rd-1; i3++){
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	emf_kxky[i1+emf->n1fft*i2] =	emf_kxky[i1+emf->n1fft*i2]*emf->sE12kxky[i3][i2][i1];
+	emf_kxky[i1+emf->n1fft*i2] = emf_kxky[i1+emf->n1fft*i2]*emf->sE12kxky[i3][i2][i1];
       }
     }
     fftw_execute(ifft_airwave);
