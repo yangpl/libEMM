@@ -356,9 +356,10 @@ void sanity_check(emf_t *emf)
   if(iproc==0){
     printf("[rhomin, rhomax]=[%g, %g] Ohm-m\n", emf->rhomin, emf->rhomax);
     printf("wavespeed [vmin, vmax]=[%g, %g] m/s\n", emf->vmin, emf->vmax);
-    printf("FD order=%d, Glim=%g ppw, freq<=%g Hz can be simulated\n", 2*emf->rd, Glim, freqmax);
+    printf("FD order=%d, Glim=%g ppw\n", 2*emf->rd, Glim);
+    printf("freq<=%g Hz can be simulated\n", freqmax);
     printf("dt=%g s\n",  emf->dt);
-    printf("nt=%d\n",  emf->nt);
+    printf("nt=%d\n (maximum number of time steps)",  emf->nt);
   }
 }
 
@@ -1636,7 +1637,7 @@ void airwave_bc_update_E(emf_t *emf)
   for(i3=0; i3<emf->rd3-1; i3++){
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	emf_kxky[i1+emf->n1fft*i2] = emf_kxky[i1+emf->n1fft*i2]*emf->sE12kxky[i3][i2][i1];
+	emf_kxky[i1+emf->n1fft*i2] = emf_kxkyz0[i1+emf->n1fft*i2]*emf->sE12kxky[i3][i2][i1];
       }
     }
     fftw_execute(ifft_airwave);
@@ -1663,7 +1664,7 @@ void airwave_bc_update_E(emf_t *emf)
   for(i3=0; i3<emf->rd3-1; i3++){
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	emf_kxky[i1+emf->n1fft*i2] = emf_kxky[i1+emf->n1fft*i2]*emf->sE12kxky[i3][i2][i1];
+	emf_kxky[i1+emf->n1fft*i2] = emf_kxkyz0[i1+emf->n1fft*i2]*emf->sE12kxky[i3][i2][i1];
       }
     }
     fftw_execute(ifft_airwave);
