@@ -359,7 +359,7 @@ void sanity_check(emf_t *emf)
     printf("FD order=%d, Glim=%g ppw\n", 2*emf->rd, Glim);
     printf("freq<=%g Hz can be simulated\n", freqmax);
     printf("dt=%g s\n",  emf->dt);
-    printf("nt=%d\n (maximum number of time steps)",  emf->nt);
+    printf("nt=%d (maximum number of time steps)\n",  emf->nt);
   }
 }
 
