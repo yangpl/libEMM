@@ -271,9 +271,6 @@ void extend_model_init(emf_t *emf)
     j3 = emf->n3pad-i3-1;
     for(i2=0; i2<emf->n2pad; i2++) {
       for(i1=0; i1<emf->n1pad; i1++) {
-  	/* emf->inveps11[i3][i2][i1] = emf->inveps11[emf->nb        ][i2][i1]; */
-  	/* emf->inveps22[i3][i2][i1] = emf->inveps22[emf->nb        ][i2][i1]; */
-  	/* emf->inveps33[i3][i2][i1] = emf->inveps33[emf->nb        ][i2][i1]; */
   	emf->inveps11[j3][i2][i1] = emf->inveps11[emf->n3pad-emf->nb-1][i2][i1];
   	emf->inveps22[j3][i2][i1] = emf->inveps22[emf->n3pad-emf->nb-1][i2][i1];
   	emf->inveps33[j3][i2][i1] = emf->inveps33[emf->n3pad-emf->nb-1][i2][i1];
@@ -592,7 +589,6 @@ void cpml_init(emf_t *emf)
   for(i1=0; i1<emf->nb; ++i1)    {
     x=(float)(emf->nb-i1)/(float)(emf->nb);
     damp = damp0*x*x; /* damping profile in direction 1, sigma/epsilon0 */
-    // damp = damp0*(1.0-cos(0.5*PI*x));
     emf->bpml[i1] = expf(-(damp+alpha)*emf->dt);
     emf->apml[i1] = damp*(emf->bpml[i1]-1.0)/(damp+alpha);
   }
@@ -738,10 +734,10 @@ void fdtd_curlH(emf_t *emf, int it)
   }
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none)					\
-  schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,				\
-	  D2H3, D3H2, D3H1, D1H3, D1H2, D2H1)				\
+#pragma omp parallel for default(none)				\
+  schedule(static)						\
+  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,			\
+	  D2H3, D3H2, D3H1, D1H3, D1H2, D2H1)			\
   shared(c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
 #endif
   for(i3=0; i3<=emf->n3pad-emf->rd3; ++i3){
@@ -780,7 +776,7 @@ void fdtd_curlH(emf_t *emf, int it)
 	    + c22*(emf->H1[i3][i2+1][i1]-emf->H1[i3][i2-2][i1])
 	    + c32*(emf->H1[i3][i2+2][i1]-emf->H1[i3][i2-3][i1]);
 	}
-	
+	//note the extrapolated H1,H2 are in memory variables memD3H1 and memD3H2
 	if(emf->rd3==1){
 	  if(i3>=1){
 	    D3H2 = c13*(emf->H2[i3][i2][i1]-emf->H2[i3-1][i2][i1]);
@@ -889,9 +885,9 @@ void fdtd_update_E(emf_t *emf, int it)
   int i1, i2, i3;
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none)					\
-  schedule(static)							\
-  private(i1, i2, i3)							\
+#pragma omp parallel for default(none)		\
+  schedule(static)				\
+  private(i1, i2, i3)				\
   shared(emf)
 #endif
   for(i3=0; i3<emf->n3pad; ++i3){
@@ -948,10 +944,10 @@ void fdtd_curlE(emf_t *emf, int it)
   }
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none)					\
-  schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,				\
-	  D2E3, D3E2, D3E1, D1E3, D1E2, D2E1)				\
+#pragma omp parallel for default(none)				\
+  schedule(static)						\
+  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,			\
+	  D2E3, D3E2, D3E1, D1E3, D1E2, D2E1)			\
   shared(c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
 #endif
   for(i3=0; i3<emf->n3pad-emf->rd3; ++i3){
@@ -991,6 +987,7 @@ void fdtd_curlE(emf_t *emf, int it)
 	    + c32*(emf->E1[i3][i2+3][i1]-emf->E1[i3][i2-2][i1]);
 	}
 
+	//note the extrapolated E1,E2 are in memory variables memD3E1 and memD3E2
 	if(emf->rd3==1){
 	  D3E2 = c13*(emf->E2[i3+1][i2][i1]-emf->E2[i3][i2][i1]);
 	  D3E1 = c13*(emf->E1[i3+1][i2][i1]-emf->E1[i3][i2][i1]);
@@ -1081,9 +1078,9 @@ void fdtd_update_H(emf_t *emf, int it)
   
   float factor = emf->dt/mu0;
 #ifdef _OPENMP
-#pragma omp parallel for default(none)					\
-  schedule(static)							\
-  private(i1, i2, i3)							\
+#pragma omp parallel for default(none)		\
+  schedule(static)				\
+  private(i1, i2, i3)				\
   shared(emf, factor)
 #endif
   for(i3=0; i3<emf->n3pad; ++i3){
@@ -1255,7 +1252,7 @@ void interpolation_weights(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, inte
 
 	interp->rec_i1[irec][isub] = j1 + emf->nb;
 	interp->rec_i2[irec][isub] = j2 + emf->nb;
-	interp->rec_i3[irec][isub] = j3;
+	interp->rec_i3[irec][isub] = j3;//no points above water
 
 	skip1 = false;
 	skip2 = false;
@@ -1335,7 +1332,7 @@ void interpolation_weights(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, inte
 
 	interp->src_i1[isrc][isub] = j1 + emf->nb;
 	interp->src_i2[isrc][isub] = j2 + emf->nb;
-	interp->src_i3[isrc][isub] = j3;
+	interp->src_i3[isrc][isub] = j3;//no points above water
 
 	skip1 = false;
 	skip2 = false;
@@ -1595,6 +1592,7 @@ void airwave_bc_update_H(emf_t *emf)
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2pad; i2++){
       for(i1=0; i1<emf->n1pad; i1++){
+	//we store extrapolated values in the unused part of memory variables
 	emf->memD3H1[i3][i2][i1] = creal(emf_kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
       }
     }
@@ -1611,6 +1609,7 @@ void airwave_bc_update_H(emf_t *emf)
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2pad; i2++){
       for(i1=0; i1<emf->n1pad; i1++){
+	//we store extrapolated values in the unused part of memory variables
 	emf->memD3H2[i3][i2][i1] = creal(emf_kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
       }
     }
@@ -1643,6 +1642,7 @@ void airwave_bc_update_E(emf_t *emf)
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2pad; i2++){
       for(i1=0; i1<emf->n1pad; i1++){
+	//we store extrapolated values in the unused part of memory variables
 	emf->memD3E1[i3][i2][i1] = creal(emf_kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
       }
     }
@@ -1669,6 +1669,7 @@ void airwave_bc_update_E(emf_t *emf)
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2pad; i2++){
       for(i1=0; i1<emf->n1pad; i1++){
+	//we store extrapolated values in the unused part of memory variables
 	emf->memD3E2[i3][i2][i1] = creal(emf_kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
       }
     }
@@ -1715,9 +1716,9 @@ void dtft_emf(emf_t *emf, int it)
     factor = cexp(I*omegap*(it+0.5)*emf->dt);
 
 #ifdef _OPENMP
-#pragma omp parallel for default(none)				\
-  schedule(static)						\
-  private(i1, i2, i3)						\
+#pragma omp parallel for default(none)		\
+  schedule(static)				\
+  private(i1, i2, i3)				\
   shared(ifreq, factor, emf)
 #endif
     for(i3=0; i3<emf->n3pad-emf->nb+emf->rd3; ++i3){
