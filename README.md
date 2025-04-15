@@ -21,7 +21,7 @@ Governing equation: 1st order diffusive Maxwell equation
 Code structure:
 ===============
 
-* src: the source code in .c and .cu/.cuh.
+* src: the source code in .c and .cu/.cuh. Code applies uniform gridding along x and y axes, but nonuniform gridding along z axis.
 
 * include: the header files in .h
 
@@ -32,6 +32,14 @@ Code structure:
 * run_1d: Application example in 3D model of 1D layered sturture
 
 * run_bathy_2d: Appliation example in 3D model of 2D structure with seafloor bathymetry
+
+* src_fdtd_nugrid: independent folder to run FDTD on pure nonuniform grid in x, y and z axes
+
+* src_fdtd_unigrid: independent folder to run FDTD on pure uniform grid in x, y and z axes
+  It pads nb layered on each side of x, y, z axes.
+  
+* src_fdtd_unigrid_v2: independent folder to run FDTD on pure uniform grid in x, y and z axes
+ The difference with src_fdtd_unigrid is: It removes nb layers above sea surface.
 
 Instructions to run
 ===================
@@ -89,13 +97,8 @@ The initiative to start this ficititious wave domain modelling project begins wh
 
 Please give a credit to the following publication if any component of libEMM is used in your research:
 
-@Article{Yang_2023_libEMM,
-author = {Pengliang Yang},
-title = {{libEMM: A fictious wave domain 3D CSEM modelling library bridging sequential and parallel GPU implementation}},
-journal = {Computer Physics Communications},
-volume = {288},
-pages = {108745},
-year = {2023},
-issn = {0010-4655},
-doi = {https://doi.org/10.1016/j.cpc.2023.108745},
-}
+1. Pengliang Yang, libEMM: A fictious wave domain 3D CSEM modelling library bridging sequential and parallel GPU implementation, 2023 Computer Physics Communications, Vol. 288 p. 108745 [doi:10.1016/j.cpc.2023.108745](https://doi.org/10.1016/j.cpc.2023.108745)
+
+2. Pengliang Yang and Rune Mittet, Controlled-source electromagnetics modelling using high order finite-difference time-domain method on a nonuniform grid 2023 Geophysics , Vol. 88, No. 2 Society of Exploration Geophysicists p. E53-E67
+[doi:10.1190/geo2022-0134.1](https://doi.org/10.1190/geo2022-0134.1)
+
