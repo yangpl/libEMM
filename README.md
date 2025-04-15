@@ -35,11 +35,11 @@ Code structure:
 
 * src_fdtd_nugrid: independent folder to run FDTD on pure nonuniform grid in x, y and z axes
 
-* src_fdtd_unigrid: independent folder to run FDTD on pure uniform grid in x, y and z axes
+* src_fdtd_unigrid: independent folder to run FDTD on pure uniform grid in x, y and z axes.
   It pads nb layered on each side of x, y, z axes.
   
-* src_fdtd_unigrid_v2: independent folder to run FDTD on pure uniform grid in x, y and z axes
- The difference with src_fdtd_unigrid is: It removes nb layers above sea surface.
+* src_fdtd_unigrid_v2: independent folder to run FDTD on pure uniform grid in x, y and z axes.
+ The difference with src_fdtd_unigrid is: It removes nb layers above sea surface. This makes the computation much more efficient.
 
 Instructions to run
 ===================
@@ -94,6 +94,9 @@ NB: the input files may be generated prior to running. The resistivity files and
 Acknowledgement:
 ================
 The initiative to start this ficititious wave domain modelling project begins when I was a scientist working in Electromagnetic Geoservices ASA (EMGS). I developed some modeling codes in my free time, but they never work correctly.  After I left EMGS in 2020, I restarted everything from scratch using all things I learned from Madagascar open software development. It took me more than one year to make it work correctly: the solution now matches the semi-analytic one. During the development, I benefit from the discussion with Rune Mittet, in order to understand his method.
+
+
+## Credits:
 
 Please give a credit to the following publication if any component of libEMM is used in your research:
 
