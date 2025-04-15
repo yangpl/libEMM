@@ -704,13 +704,6 @@ void fdtd_curlH(emf_t *emf, int it)
   float D2H3, D3H2, D3H1, D1H3, D1H2, D2H1;
   float c11, c21, c31, c12, c22, c32, c13, c23, c33;
 
-  int i1min = emf->rd1;
-  int i2min = emf->rd2;
-  int i3min = 0;
-  int i1max = emf->n1pad-emf->rd1;
-  int i2max = emf->n2pad-emf->rd2;
-  int i3max = emf->n3pad-emf->rd3;
-
   if(emf->rd1==1){
     c11 = 1./emf->d1;
   }else if(emf->rd1==2){
@@ -747,13 +740,13 @@ void fdtd_curlH(emf_t *emf, int it)
 #ifdef _OPENMP
 #pragma omp parallel for default(none)					\
   schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3, k1, k2, k3, D2H3, D3H2, D3H1, D1H3, D1H2, D2H1)	\
-  shared(i1min, i1max, i2min, i2max, i3min, i3max, c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
+  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,				\
+	  D2H3, D3H2, D3H1, D1H3, D1H2, D2H1)				\
+  shared(c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
 #endif
-  for(i3=i3min; i3<=i3max; ++i3){
-    for(i2=i2min; i2<=i2max; ++i2){
-      for(i1=i1min; i1<=i1max; ++i1){
-
+  for(i3=0; i3<=emf->n3pad-emf->rd3; ++i3){
+    for(i2=emf->rd2; i2<=emf->n2pad-emf->rd2; ++i2){
+      for(i1=emf->rd1; i1<=emf->n1pad-emf->rd1; ++i1){
 	if(emf->rd1==1){
 	  D1H3 = c11*(emf->H3[i3][i2][i1]-emf->H3[i3][i2][i1-1]);
 	  D1H2 = c11*(emf->H2[i3][i2][i1]-emf->H2[i3][i2][i1-1]);
@@ -921,13 +914,6 @@ void fdtd_curlE(emf_t *emf, int it)
   float D2E3, D3E2, D3E1, D1E3, D1E2, D2E1;
   float c11, c21, c31, c12, c22, c32, c13, c23, c33;
 
-  int i1min = emf->rd1-1;
-  int i2min = emf->rd2-1;
-  int i3min = 0;
-  int i1max = emf->n1pad-1-emf->rd1;
-  int i2max = emf->n2pad-1-emf->rd2;
-  int i3max = emf->n3pad-1-emf->rd3;
-
   if(emf->rd1==1){
     c11 = 1./emf->d1;
   }else if(emf->rd1==2){
@@ -964,13 +950,13 @@ void fdtd_curlE(emf_t *emf, int it)
 #ifdef _OPENMP
 #pragma omp parallel for default(none)					\
   schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3, k1, k2, k3, D2E3, D3E2, D3E1, D1E3, D1E2, D2E1)	\
-  shared(i1min, i1max, i2min, i2max, i3min, i3max, c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
+  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,				\
+	  D2E3, D3E2, D3E1, D1E3, D1E2, D2E1)				\
+  shared(c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
 #endif
-  for(i3=i3min; i3<=i3max; ++i3){
-    for(i2=i2min; i2<=i2max; ++i2){
-      for(i1=i1min; i1<=i1max; ++i1){
-
+  for(i3=0; i3<emf->n3pad-emf->rd3; ++i3){
+    for(i2=emf->rd2; i2<emf->n2pad-emf->rd2; ++i2){
+      for(i1=emf->rd1-1; i1<emf->n1pad-emf->rd1; ++i1){
 	if(emf->rd1==1){
 	  D1E3 = c11*(emf->E3[i3][i2][i1+1]-emf->E3[i3][i2][i1]);
 	  D1E2 = c11*(emf->E2[i3][i2][i1+1]-emf->E2[i3][i2][i1]);
@@ -1510,7 +1496,7 @@ int fft_next_fast_size(int n)
 /*--------------------------------------------------------------------------*/
 void airwave_bc_init(emf_t *emf)
 {
-  float dkx, dky, kz, tmp;
+  float dkx, dky, kz;
   int i1, i2, i3;
   float *kx, *ky;
   
@@ -1554,9 +1540,8 @@ void airwave_bc_init(emf_t *emf)
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
 	kz = sqrt(kx[i1]*kx[i1]+ky[i2]*ky[i2]);
-	tmp = exp(-kz*(i3+0.5)*emf->d3);
-	emf->sH1kxky[i3][i2][i1] = tmp*cexp(-I*kx[i1]*0.5*emf->d1)*I*kx[i1]/(kz+1.e-15);
-	emf->sH2kxky[i3][i2][i1] = tmp*cexp(-I*ky[i2]*0.5*emf->d2)*I*ky[i2]/(kz+1.e-15);
+	emf->sH1kxky[i3][i2][i1] = exp(-kz*(i3+0.5)*emf->d3)*cexp(-I*kx[i1]*0.5*emf->d1)*I*kx[i1]/(kz+1.e-15);
+	emf->sH2kxky[i3][i2][i1] = exp(-kz*(i3+0.5)*emf->d3)*cexp(-I*ky[i2]*0.5*emf->d2)*I*ky[i2]/(kz+1.e-15);
       }
     }
   }
@@ -1725,13 +1710,6 @@ void dtft_emf(emf_t *emf, int it)
   int i1, i2, i3, ifreq;
   float _Complex omegap, factor;
   
-  int i1min = emf->nb-emf->rd1;
-  int i2min = emf->nb-emf->rd2;
-  int i3min = 0;
-  int i1max = emf->n1pad-1-emf->nb+emf->rd1;
-  int i2max = emf->n2pad-1-emf->nb+emf->rd2;
-  int i3max = emf->n3pad-1-emf->nb+emf->rd3;
-
   for(ifreq=0; ifreq<emf->nfreq; ++ifreq){
     omegap = (1.0+I)*sqrtf(emf->omega0*emf->omegas[ifreq]);
     factor = cexp(I*omegap*(it+0.5)*emf->dt);
@@ -1740,11 +1718,11 @@ void dtft_emf(emf_t *emf, int it)
 #pragma omp parallel for default(none)				\
   schedule(static)						\
   private(i1, i2, i3)						\
-  shared(i1min, i1max, i2min, i2max, i3min, i3max, ifreq, factor, emf)
+  shared(ifreq, factor, emf)
 #endif
-    for(i3=i3min; i3<=i3max; ++i3){
-      for(i2=i2min; i2<=i2max; ++i2){
-	for(i1=i1min; i1<=i1max; ++i1){
+    for(i3=0; i3<emf->n3pad-emf->nb+emf->rd3; ++i3){
+      for(i2=emf->nb-emf->rd2; i2<emf->n2pad-emf->nb+emf->rd2; ++i2){
+	for(i1=emf->nb-emf->rd1; i1<emf->n1pad-emf->nb+emf->rd1; ++i1){
 	  emf->fwd_E1[ifreq][i3][i2][i1] += emf->E1[i3][i2][i1]*factor;
 	  emf->fwd_E2[ifreq][i3][i2][i1] += emf->E2[i3][i2][i1]*factor;
 	  emf->fwd_E3[ifreq][i3][i2][i1] += emf->E3[i3][i2][i1]*factor;
@@ -1760,13 +1738,6 @@ void compute_green_function(emf_t *emf)
   int ifreq,it,i1,i2,i3;
   float _Complex omegap, src_fd;
 
-  int i1min = emf->nb;
-  int i2min = emf->nb;
-  int i3min = 0;
-  int i1max = emf->n1pad-1-emf->nb;
-  int i2max = emf->n2pad-1-emf->nb;
-  int i3max = emf->n3pad-1-emf->nb;
-
   for(ifreq=0; ifreq<emf->nfreq; ++ifreq){
     /*------------------- DTFT over omega'-------------------------*/
     omegap = (1.0+I)*sqrtf(emf->omega0*emf->omegas[ifreq]);/* omega' in fictitous wave domain */
@@ -1774,9 +1745,9 @@ void compute_green_function(emf_t *emf)
     for(it=0; it<emf->nt; ++it)  src_fd += emf->stf[it]*cexp(I*omegap*it*emf->dt);//J'
     src_fd /= csqrt(-I*0.5*emf->omegas[ifreq]/emf->omega0);//J<--J'
 
-    for(i3=i3min; i3<=i3max; ++i3){
-      for(i2=i2min; i2<=i2max; ++i2){
-	for(i1=i1min; i1<=i1max; ++i1){
+    for(i3=0; i3<emf->n3pad-emf->nb; ++i3){
+      for(i2=emf->nb; i2<emf->n2pad-emf->nb; ++i2){
+	for(i1=emf->nb; i1<emf->n1pad-emf->nb; ++i1){
 	  emf->fwd_E1[ifreq][i3][i2][i1] /= src_fd;
 	  emf->fwd_E2[ifreq][i3][i2][i1] /= src_fd;
 	  emf->fwd_E3[ifreq][i3][i2][i1] /= src_fd;
