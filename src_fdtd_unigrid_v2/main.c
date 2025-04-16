@@ -221,7 +221,6 @@ void emf_close(emf_t *emf)
 void extend_model_init(emf_t *emf)
 {
   int i1, i2, i3, j1, j2, j3;
-  float t;
 
   emf->inveps11 = alloc3float(emf->n1pad, emf->n2pad, emf->n3pad);
   emf->inveps22 = alloc3float(emf->n1pad, emf->n2pad, emf->n3pad);
@@ -231,10 +230,9 @@ void extend_model_init(emf_t *emf)
   for(i3=0; i3<emf->n3; i3++){
     for(i2=0; i2<emf->n2; i2++){
       for(i1=0; i1<emf->n1; i1++){
-  	t = 2.*emf->omega0;
-  	emf->inveps11[i3][i2+emf->nb][i1+emf->nb] = t*emf->rho11[i3][i2][i1];
-  	emf->inveps22[i3][i2+emf->nb][i1+emf->nb] = t*emf->rho22[i3][i2][i1];
-  	emf->inveps33[i3][i2+emf->nb][i1+emf->nb] = t*emf->rho33[i3][i2][i1];
+  	emf->inveps11[i3][i2+emf->nb][i1+emf->nb] = 2.*emf->omega0*emf->rho11[i3][i2][i1];
+  	emf->inveps22[i3][i2+emf->nb][i1+emf->nb] = 2.*emf->omega0*emf->rho22[i3][i2][i1];
+  	emf->inveps33[i3][i2+emf->nb][i1+emf->nb] = 2.*emf->omega0*emf->rho33[i3][i2][i1];
       }
     }
   }
@@ -952,7 +950,7 @@ void fdtd_curlE(emf_t *emf, int it)
   shared(c11, c21, c31, c12, c22, c32, c13, c23, c33, emf)
 #endif
   for(i3=0; i3<emf->n3pad-emf->rd3; ++i3){
-    for(i2=emf->rd2; i2<emf->n2pad-emf->rd2; ++i2){
+    for(i2=emf->rd2-1; i2<emf->n2pad-emf->rd2; ++i2){
       for(i1=emf->rd1-1; i1<emf->n1pad-emf->rd1; ++i1){
 	if(emf->rd1==1){
 	  D1E3 = c11*(emf->E3[i3][i2][i1+1]-emf->E3[i3][i2][i1]);
