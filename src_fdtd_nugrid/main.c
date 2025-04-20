@@ -903,7 +903,6 @@ void cpml_init(emf_t *emf)
   for(i1=0; i1<emf->nb; ++i1)    {
     x=(float)(emf->nb-i1)/emf->nb;
     damp = damp0*x*x; /* damping profile in direction 1, sigma/epsilon0 */
-    // damp = damp0*(1.0-cos(0.5*PI*x));
     emf->bpml[i1] = expf(-(damp+alpha)*emf->dt);
     emf->apml[i1] = damp*(emf->bpml[i1]-1.0)/(damp+alpha);
   }
@@ -912,7 +911,7 @@ void cpml_init(emf_t *emf)
 void cpml_close(emf_t *emf)
 {
   free(emf->apml);
-  free(emf->apml);
+  free(emf->bpml);
 }
 
 
@@ -2396,31 +2395,6 @@ void extract_emf(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *inte
 		}
 	      }
 	    }
-
-	    /* /\* derivative jump correction *\/ */
-	    /* /\* staggered grid: E3[i1, i2, i3] = Ez[i1, i2, i3+0.5] *\/ */
-	    /* ix1 = interp_rg->rec_i1[irec][isub]; */
-	    /* ix2 = interp_rg->rec_i2[irec][isub]; */
-	    /* ix3 = interp_sg->rec_i3[irec][isub]; */
-	    /* for(i3=-emf->rd3+1; i3<=emf->rd3; i3++){ */
-	    /*   w3 = interp_rg->rec_w3[irec][isub][i3+emf->rd3-1]; */
-	    /*   i3_ = ix3+i3; */
-	    /*   distance = emf->x3n[i3_] -emf->x3n[emf->nbe]- emf->waterdepth; */
-	    /*   if(distance>0) { */
-	    /* 	for(i2=-emf->rd2+1; i2<=emf->rd2; i2++){ */
-	    /* 	  w2 = interp_rg->rec_w2[irec][isub][i2+emf->rd2-1]; */
-	    /* 	  i2_ = ix2+i2; */
-	    /* 	  for(i1=-emf->rd1+1; i1<=emf->rd1; i1++){ */
-	    /* 	    w1 = interp_rg->rec_v1[irec][isub][i1+emf->rd1-1]; */
-	    /* 	    i1_ = ix1+i1; */
-
-	    /* 	    t = emf->fwd_Jz[ifreq][i3_][i2_][i1_]*w1*w2*w3; */
-	    /* 	    t *= (1./emf->sigma_formation-1./emf->sigma_water); */
-	    /* 	    s -= distance*t; */
-	    /* 	  } */
-	    /* 	} */
-	    /*   } */
-	    /* } */
 
 	    emf->dcal_fd[ic][ifreq][irec] = s;
 	  }/* end if */
