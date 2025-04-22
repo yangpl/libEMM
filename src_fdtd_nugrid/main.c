@@ -15,9 +15,6 @@
 
 int iproc, nproc, ierr;
 
-#define PI 3.14159265358979323846264
-#define mu0  (4.*PI*1e-7)
-
 typedef struct {
   int nsrc;/* number of sources on each processor, default=1 */
   int nrec;/* number of receivers on each processor */
@@ -31,7 +28,7 @@ typedef struct {
   float *src_x1, *src_x2, *src_x3, *src_azimuth, *src_dip;
   float *rec_x1, *rec_x2, *rec_x3, *rec_azimuth, *rec_dip;
   float x1min, x1max, x2min, x2max, x3min, x3max;/* coordinate bounds */
-} acqui_t;/* type of acquisition geometry */
+} acq_t;/* type of acquisition geometry */
 
 typedef struct {
   int airwave;
@@ -67,8 +64,7 @@ typedef struct {
   float *hx, *hz;
   
   float *kx, *ky;
-  float *hw1, *hw2;//Hanning window
-  float **sqrtkx2ky2;
+  float **kz;
 
   int n1fft, n2fft;
   float d1uni, d2uni, d3uni; //grid spacing of a uniform grid for air-water
@@ -77,7 +73,7 @@ typedef struct {
   float ***uni_H1, ***uni_H2, ***uni_E1, ***uni_E2;//interpolated fields on uniform grid
   
   float dx1_start, dx1_end, dx2_start, dx2_end, dx3_start, dx3_end;
-  float *apml, *bpml;
+  float *apml, *bpml, *damp;
   
   float ***E1, ***E2, ***E3;
   float ***H1, ***H2, ***H3;
@@ -114,7 +110,7 @@ int cmpfunc(const void *a, const void *b) { return ( *(int*)a - *(int*)b ); }
 void emf_init(emf_t *emf)
 {
   char *frho11, *frho22, *frho33, *fx1nu, *fx2nu, *fx3nu;//, *fhx, *fhz;
-  FILE *fp;
+  FILE *fp=NULL;
   int ifreq, ic, istat, i1, i2, i3;
   float tmp;
 
@@ -124,7 +120,7 @@ void emf_init(emf_t *emf)
   /* number of cells in axis-2, ny */
   if(!getparint("n3", &emf->n3)) emf->n3=51; 
   /* number of cells in axis-3, nz */
-  if(!getparint("nb", &emf->nb)) emf->nb=14; 
+  if(!getparint("nb", &emf->nb)) emf->nb=6; 
   /* number of PML layers on each side */
   if(!getparint("rd1", &emf->rd1)) emf->rd1=2; 
   /* half length of FD stencil */
@@ -133,8 +129,7 @@ void emf_init(emf_t *emf)
   if(!getparint("rd3", &emf->rd3)) emf->rd3=2; 
   /* half length of FD stencil */
   emf->rd = MAX(MAX(emf->rd1, emf->rd2), emf->rd3);
-  /* simulate airwave on top boundary */
-  if(!getparfloat("f0", &emf->f0)) emf->f0=0.5;
+  if(!getparfloat("f0", &emf->f0)) emf->f0=1;
   emf->omega0 = 2.*PI*emf->f0;
   /* reference frequency */
   if(!getparfloat("Glim", &emf->Glim)) emf->Glim=5;/* 5 points/wavelength */
@@ -181,7 +176,7 @@ void emf_init(emf_t *emf)
     printf("Active source channels:");
     for(ic=0; ic<emf->nch_src; ++ic) printf(" %s", emf->ch_src[ic]);
     printf("\n");
-    printf("Active receiver channels:");
+    printf("Active recever channels:");
     for(ic=0; ic<emf->nchrec; ++ic) printf(" %s", emf->ch_rec[ic]);
     printf("\n");
   }
@@ -354,7 +349,6 @@ void extend_model_init(emf_t *emf)
     }
   }
 
-
   /* air water interface: sigma = 0.5*(sigma_air+sigma_water)=0.5*sigma_water */
   i3=emf->nbe;
   for(i2=0; i2<emf->n2pad; i2++){
@@ -363,7 +357,6 @@ void extend_model_init(emf_t *emf)
       emf->inveps22[i3][i2][i1] *= 2;
     }
   }
-
 }
 
 void extend_model_close(emf_t *emf)
@@ -406,7 +399,7 @@ void vandermonde(int n, float *x, float *a, float *f)
   }
 }
 
-void acqui_init(acqui_t *acqui, emf_t * emf)
+void acq_init(acq_t *acqui, emf_t * emf)
 /*< read acquisition file to initialize survey geometry >*/
 {
   static int nd = 5000;//maximum dimensions for the number of source and receiver
@@ -624,7 +617,7 @@ void acqui_init(acqui_t *acqui, emf_t * emf)
 }
 
 
-void acqui_close(acqui_t *acqui)
+void acq_close(acq_t *acqui)
 /*< free the allocated variables for acquisition >*/
 {
   free(acqui->src_x1);
@@ -884,27 +877,31 @@ void sanity_check(emf_t *emf)
     printf("dt=%g s\n",  emf->dt);
     printf("nt=%d\n",  emf->nt);
   }
+
 }
 
 void cpml_init(emf_t *emf)
 /*< initialize PML abosorbing coefficients >*/
 {
-  float x, damp0, damp;// L;
-  int i1, i2, i3;
+  float x, damp0;
+  int i1;
 
   /* by default, we choose: kappa=1, alpha=PI*emf->f0 for CPML */
   float alpha=PI*emf->f0; /* alpha>0 makes CPML effectively attenuates evanescent waves */
+  //const float Rc = 1e-5; /* theoretic reflection coefficient for PML */
 
   emf->apml = alloc1float(emf->nb);
   emf->bpml = alloc1float(emf->nb);
+  emf->damp = alloc1float(emf->nb);
 
   //L=emf->nb*(emf->x1nu[1]- emf->x1nu[0]);
   damp0= 349.1; //-3.*emf->vmax*logf(Rc)/(2.*L);
   for(i1=0; i1<emf->nb; ++i1)    {
     x=(float)(emf->nb-i1)/emf->nb;
-    damp = damp0*x*x; /* damping profile in direction 1, sigma/epsilon0 */
-    emf->bpml[i1] = expf(-(damp+alpha)*emf->dt);
-    emf->apml[i1] = damp*(emf->bpml[i1]-1.0)/(damp+alpha);
+    emf->damp[i1] = damp0*x*x; /* damping profile in direction 1, sigma/epsilon0 */
+    // damp = damp0*(1.0-cos(0.5*PI*x));
+    emf->bpml[i1] = exp(-(emf->damp[i1]+alpha)*emf->dt);
+    emf->apml[i1] = emf->damp[i1]*(emf->bpml[i1]-1.0)/(emf->damp[i1]+alpha);
   }
 }
 
@@ -912,6 +909,7 @@ void cpml_close(emf_t *emf)
 {
   free(emf->apml);
   free(emf->bpml);
+  free(emf->damp);
 }
 
 
@@ -1011,13 +1009,14 @@ void nufdtd_curlE(emf_t *emf)
   int i2max = emf->n2pad-1-emf->rd2;
   int i3max = emf->n3pad-1-emf->rd3;
 
-  int i1, i2, i3, j1, j2, j3, k1, k2, k3;
+  int i1, i2, i3, j1, j2, j3;
   float D2E3, D3E2, D3E1, D1E3, D1E2, D2E1;
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none)					\
   schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3, k1, k2, k3, D2E3, D3E2, D3E1, D1E3, D1E2, D2E1) \
+  private(i1, i2, i3, j1, j2, j3,					\
+	  D2E3, D3E2, D3E1, D1E3, D1E2, D2E1)				\
   shared(i1min, i1max, i2min, i2max, i3min, i3max, emf)
 #endif
   for(i3=i3min; i3<=i3max; ++i3){
@@ -1113,43 +1112,28 @@ void nufdtd_curlE(emf_t *emf)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  emf->memD1E3[i3][i2][i1] = emf->bpml[i1]*emf->memD1E3[i3][i2][i1] + emf->apml[i1]*D1E3;
-	  emf->memD1E2[i3][i2][i1] = emf->bpml[i1]*emf->memD1E2[i3][i2][i1] + emf->apml[i1]*D1E2;
-	  D1E3 += emf->memD1E3[i3][i2][i1];
-	  D1E2 += emf->memD1E2[i3][i2][i1];
+	  D1E3 /= emf->damp[i1];
+	  D1E2 /= emf->damp[i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
-	  k1 = j1+emf->nb;
-	  emf->memD1E3[i3][i2][k1] = emf->bpml[j1]*emf->memD1E3[i3][i2][k1] + emf->apml[j1]*D1E3;
-	  emf->memD1E2[i3][i2][k1] = emf->bpml[j1]*emf->memD1E2[i3][i2][k1] + emf->apml[j1]*D1E2;
-	  D1E3 += emf->memD1E3[i3][i2][k1];
-	  D1E2 += emf->memD1E2[i3][i2][k1];
+	  D1E3 /= emf->damp[j1];
+	  D1E2 /= emf->damp[j1];
 	}
 	if(i2<emf->nb){
-	  emf->memD2E3[i3][i2][i1] = emf->bpml[i2]*emf->memD2E3[i3][i2][i1] + emf->apml[i2]*D2E3;
-	  emf->memD2E1[i3][i2][i1] = emf->bpml[i2]*emf->memD2E1[i3][i2][i1] + emf->apml[i2]*D2E1;
-	  D2E3 += emf->memD2E3[i3][i2][i1];
-	  D2E1 += emf->memD2E1[i3][i2][i1];
+	  D2E3 /= emf->damp[i2];
+	  D2E1 /= emf->damp[i2];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
-	  k2 = j2+emf->nb;
-	  emf->memD2E3[i3][k2][i1] = emf->bpml[j2]*emf->memD2E3[i3][k2][i1] + emf->apml[j2]*D2E3;
-	  emf->memD2E1[i3][k2][i1] = emf->bpml[j2]*emf->memD2E1[i3][k2][i1] + emf->apml[j2]*D2E1;
-	  D2E3 += emf->memD2E3[i3][k2][i1];
-	  D2E1 += emf->memD2E1[i3][k2][i1];
+	  D2E3 /= emf->damp[j2];
+	  D2E1 /= emf->damp[j2];
 	}
 	if(i3<emf->nb){
-	  emf->memD3E2[i3][i2][i1] = emf->bpml[i3]*emf->memD3E2[i3][i2][i1] + emf->apml[i3]*D3E2;
-	  emf->memD3E1[i3][i2][i1] = emf->bpml[i3]*emf->memD3E1[i3][i2][i1] + emf->apml[i3]*D3E1;
-	  D3E2 += emf->memD3E2[i3][i2][i1];
-	  D3E1 += emf->memD3E1[i3][i2][i1];
+	  D3E2 /= emf->damp[i3];
+	  D3E1 /= emf->damp[i3];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
-	  k3 = j3+emf->nb;
-	  emf->memD3E2[k3][i2][i1] = emf->bpml[j3]*emf->memD3E2[k3][i2][i1] + emf->apml[j3]*D3E2;
-	  emf->memD3E1[k3][i2][i1] = emf->bpml[j3]*emf->memD3E1[k3][i2][i1] + emf->apml[j3]*D3E1;
-	  D3E2 += emf->memD3E2[k3][i2][i1];
-	  D3E1 += emf->memD3E1[k3][i2][i1];
+	  D3E2 /= emf->damp[j3];
+	  D3E1 /= emf->damp[j3];
 	}
 
 	emf->curlE1[i3][i2][i1] = D2E3-D3E2;
@@ -1200,13 +1184,14 @@ void nufdtd_curlH(emf_t *emf)
   int i2max = emf->n2pad-emf->rd2;
   int i3max = emf->n3pad-emf->rd3;
 
-  int i1, i2, i3, j1, j2, j3, k1, k2, k3;
+  int i1, i2, i3, j1, j2, j3;
   float D2H3, D3H2, D3H1, D1H3, D1H2, D2H1;
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none)					\
   schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3, k1, k2, k3, D2H3, D3H2, D3H1, D1H3, D1H2, D2H1) \
+  private(i1, i2, i3, j1, j2, j3,					\
+	  D2H3, D3H2, D3H1, D1H3, D1H2, D2H1)				\
   shared(i1min, i1max, i2min, i2max, i3min, i3max, emf)
 #endif
   for(i3=i3min; i3<=i3max; ++i3){
@@ -1302,43 +1287,28 @@ void nufdtd_curlH(emf_t *emf)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  emf->memD1H3[i3][i2][i1] = emf->bpml[i1]*emf->memD1H3[i3][i2][i1] + emf->apml[i1]*D1H3;
-	  emf->memD1H2[i3][i2][i1] = emf->bpml[i1]*emf->memD1H2[i3][i2][i1] + emf->apml[i1]*D1H2;
-	  D1H3 += emf->memD1H3[i3][i2][i1];
-	  D1H2 += emf->memD1H2[i3][i2][i1];
+	  D1H3 /= emf->damp[i1];
+	  D1H2 /= emf->damp[i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
-	  k1 = j1+emf->nb;
-	  emf->memD1H3[i3][i2][k1] = emf->bpml[j1]*emf->memD1H3[i3][i2][k1] + emf->apml[j1]*D1H3;
-	  emf->memD1H2[i3][i2][k1] = emf->bpml[j1]*emf->memD1H2[i3][i2][k1] + emf->apml[j1]*D1H2;
-	  D1H3 += emf->memD1H3[i3][i2][k1];
-	  D1H2 += emf->memD1H2[i3][i2][k1];
+	  D1H3 /= emf->damp[j1];
+	  D1H2 /= emf->damp[j1];
 	}
 	if(i2<emf->nb){
-	  emf->memD2H3[i3][i2][i1] = emf->bpml[i2]*emf->memD2H3[i3][i2][i1] + emf->apml[i2]*D2H3;
-	  emf->memD2H1[i3][i2][i1] = emf->bpml[i2]*emf->memD2H1[i3][i2][i1] + emf->apml[i2]*D2H1;
-	  D2H3 += emf->memD2H3[i3][i2][i1];
-	  D2H1 += emf->memD2H1[i3][i2][i1];
+	  D2H3 /= emf->damp[i2];
+	  D2H1 /= emf->damp[i2];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
-	  k2 = j2+emf->nb;
-	  emf->memD2H3[i3][k2][i1] = emf->bpml[j2]*emf->memD2H3[i3][k2][i1] + emf->apml[j2]*D2H3;
-	  emf->memD2H1[i3][k2][i1] = emf->bpml[j2]*emf->memD2H1[i3][k2][i1] + emf->apml[j2]*D2H1;
-	  D2H3 += emf->memD2H3[i3][k2][i1];
-	  D2H1 += emf->memD2H1[i3][k2][i1];
+	  D2H3 /= emf->damp[j2];
+	  D2H1 /= emf->damp[j2];
 	}
 	if(i3<emf->nb){
-	  emf->memD3H2[i3][i2][i1] = emf->bpml[i3]*emf->memD3H2[i3][i2][i1] + emf->apml[i3]*D3H2;
-	  emf->memD3H1[i3][i2][i1] = emf->bpml[i3]*emf->memD3H1[i3][i2][i1] + emf->apml[i3]*D3H1;
-	  D3H2 += emf->memD3H2[i3][i2][i1];
-	  D3H1 += emf->memD3H1[i3][i2][i1];
+	  D3H2 /= emf->damp[i3];
+	  D3H1 /= emf->damp[i3];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
-	  k3 = j3+emf->nb;
-	  emf->memD3H2[k3][i2][i1] = emf->bpml[j3]*emf->memD3H2[k3][i2][i1] + emf->apml[j3]*D3H2;
-	  emf->memD3H1[k3][i2][i1] = emf->bpml[j3]*emf->memD3H1[k3][i2][i1] + emf->apml[j3]*D3H1;
-	  D3H2 += emf->memD3H2[k3][i2][i1];
-	  D3H1 += emf->memD3H1[k3][i2][i1];
+	  D3H2 /= emf->damp[j3];
+	  D3H1 /= emf->damp[j3];
 	}
 
 	emf->curlH1[i3][i2][i1] = D2H3-D3H2;
@@ -1379,7 +1349,11 @@ void nufdtd_update_E(emf_t *emf)
 }
 
 
-/* find the index k in x[] such that x[k]<= val <x[k+1] */
+/* find the index k in x[] such that x[k]<= val <x[k+1] 
+ *
+ * Copyright (c) 2020 Pengliang Yang. All rights reserved.
+ * Email: ypl.2100@gmail.com
+ */
 int find_index(int n, float *x, float val)
 {
   /*assume x[] has been sorted ascendingly */
@@ -1407,12 +1381,12 @@ fftw_plan fft_airwave, ifft_airwave;
 int fft_next_fast_size(int n)
 {
   int m;
+  int p = 2*n;
     
   /* m = 1; */
   /* while(m<p) m *= 2; */
   /* return m; */
 
-  int p = n;
   while(1) {
     m=p;
     while ( (m%2) == 0 ) m/=2;
@@ -1432,7 +1406,6 @@ void airwave_bc_init(emf_t *emf)
   float dkx, dky, o1, o2;
   int i1, i2, j1, j2;
   float x0;
-  const float eps = 1e-15;
 
   emf->d1uni = emf->dx1min; //0.5*(emf->dx1min+emf->dx1_start);
   emf->d2uni = emf->dx2min; //0.5*(emf->dx2min+emf->dx2_start);
@@ -1475,16 +1448,6 @@ void airwave_bc_init(emf_t *emf)
     j2 = find_index(emf->n2pad, emf->x2s, x0);
     emf->nu_i2_s[i2] = j2;
   }
-  emf->uni_H1 = alloc3float(emf->n1uni, emf->n2uni, emf->rd3);
-  emf->uni_H2 = alloc3float(emf->n1uni, emf->n2uni, emf->rd3);
-  emf->uni_E1 = alloc3float(emf->n1uni, emf->n2uni, emf->rd3-1);
-  emf->uni_E2 = alloc3float(emf->n1uni, emf->n2uni, emf->rd3-1);
-  memset(emf->uni_H1[0][0], 0, emf->n1uni*emf->n2uni*emf->rd3*sizeof(float));
-  memset(emf->uni_H2[0][0], 0, emf->n1uni*emf->n2uni*emf->rd3*sizeof(float));
-  if(emf->rd3>1){
-    memset(emf->uni_E1[0][0], 0, emf->n1uni*emf->n2uni*(emf->rd3-1)*sizeof(float));
-    memset(emf->uni_E2[0][0], 0, emf->n1uni*emf->n2uni*(emf->rd3-1)*sizeof(float));
-  }
 
   /*----------------------------------------------------------*/
   emf->n1fft = fft_next_fast_size(emf->n1uni);
@@ -1493,9 +1456,7 @@ void airwave_bc_init(emf_t *emf)
   
   emf->kx = alloc1float(emf->n1fft);
   emf->ky = alloc1float(emf->n2fft);
-  emf->hw1 = alloc1float(emf->n1fft);
-  emf->hw2 = alloc1float(emf->n2fft);
-  emf->sqrtkx2ky2 = alloc2float(emf->n1fft, emf->n2fft);
+  emf->kz = alloc2float(emf->n1fft, emf->n2fft);
   
   /* pre-compute the discrete wavenumber - kx */
   dkx=2.0*PI/(emf->d1uni*emf->n1fft);
@@ -1514,21 +1475,16 @@ void airwave_bc_init(emf_t *emf)
   }
   if(emf->n2fft%2==0) emf->ky[emf->n2fft/2] = (emf->n2fft/2)*dky;/* Nyquist freq*/
 
-  for(i1=0; i1<emf->n1fft; i1++) emf->hw1[i1] = 0.5*(1.+cos(2.*PI*i1/emf->n1fft));
-  for(i2=0; i2<emf->n2fft; i2++) emf->hw2[i2] = 0.5*(1.+cos(2.*PI*i2/emf->n2fft));
-  
   for(i2=0; i2<emf->n2fft; i2++){
     for(i1=0; i1<emf->n1fft; i1++){
-      emf->sqrtkx2ky2[i2][i1] = sqrt(emf->kx[i1]*emf->kx[i1]+emf->ky[i2]*emf->ky[i2] + eps);
+      emf->kz[i2][i1] = sqrt(emf->kx[i1]*emf->kx[i1]+emf->ky[i2]*emf->ky[i2]);
     }
   }
 
   /* FE3 is not necessary in the air because we do not compute derivates of Hx
    * and Hy in the air: Hx and Hy are derived directly by extrapolation from Hz. */
-  kxky=(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
-  kxkyz0=(fftw_complex*)fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
-  H1kxkyz0 = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
-  H2kxkyz0 = (fftw_complex*)fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
+  kxky = fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
+  kxkyz0 = fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
   /* comapred with FFTW, we have opposite sign convention for time, same sign convetion for space */
   fft_airwave=fftw_plan_dft_2d(emf->n1fft, emf->n2fft, kxky, kxky, FFTW_FORWARD, FFTW_ESTIMATE);
   ifft_airwave=fftw_plan_dft_2d(emf->n1fft, emf->n2fft, kxky, kxky, FFTW_BACKWARD, FFTW_ESTIMATE);
@@ -1536,27 +1492,16 @@ void airwave_bc_init(emf_t *emf)
 
 void airwave_bc_close(emf_t *emf)
 {
-  free3float(emf->uni_H1);
-  free3float(emf->uni_H2);
-  if(emf->rd3>1){
-    free3float(emf->uni_E1);
-    free3float(emf->uni_E2);
-  }
   free1int(emf->nu_i1);
   free1int(emf->nu_i2);
   free1int(emf->nu_i1_s);
   free1int(emf->nu_i2_s);
 
-
   free(emf->kx);
   free(emf->ky);
-  free(emf->hw1);
-  free(emf->hw2);
-  free2float(emf->sqrtkx2ky2);
+  free2float(emf->kz);
   fftw_free(kxky);
   fftw_free(kxkyz0);
-  fftw_free(H1kxkyz0);
-  fftw_free(H2kxkyz0);
   fftw_destroy_plan(fft_airwave);
   fftw_destroy_plan(ifft_airwave);
 }
@@ -1566,7 +1511,8 @@ void airwave_bc_update_H(emf_t *emf)
 {
   int i1, i2, i3, i1_, i2_;
   float w1, w2, o1, o2, s;
-  bool ok1, ok2, ok1p, ok2p;
+  bool ok1, ok2;
+  complex t;
   
   memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
   i3 = emf->nbe;
@@ -1576,174 +1522,128 @@ void airwave_bc_update_H(emf_t *emf)
   o2 = emf->x2n[0] + 0.5*emf->d2uni;
   for(i2=0; i2<emf->n2uni; i2++){
     i2_ = emf->nu_i2_s[i2];
-    ok2 = (i2_>=0 && i2_+1<emf->n2pad)?true:false;
-    w2 = ok2?(o2 + i2*emf->d2uni -emf->x2s[i2_])/(emf->x2s[i2_+1]-emf->x2s[i2_]):0;
-    ok2 = (i2_>=0 && i2_<emf->n2pad)?true:false;
-    ok2p = (i2_+1>=0 && i2_+1<emf->n2pad)?true:false;
+    if(i2_>0 && i2_+1<emf->n2pad){
+      w2 = (o2 + i2*emf->d2uni -emf->x2s[i2_])/(emf->x2s[i2_+1]-emf->x2s[i2_]);
+      ok2 = true;
+    }else{
+      w2 = 0;
+      ok2 = false;
+    }
     for(i1=0; i1<emf->n1uni; i1++){
       i1_ = emf->nu_i1_s[i1];
-      ok1 = (i1_>=0 && i1_+1<emf->n1pad)?true:false;
-      w1 = ok1?(o1 + i1*emf->d1uni -emf->x1s[i1_])/(emf->x1s[i1_+1]-emf->x1s[i1_]):0;
-      ok1 = (i1_>=0 && i1_<emf->n1pad)?true:false;
-      ok1p = (i1_+1>=0 && i1_+1<emf->n1pad)?true:false;
-
-      s = 0;
-      if(ok1 && ok2) s += emf->H3[i3][i2_][i1_]*(1.-w1)*(1.-w2);
-      if(ok1p && ok2) s += emf->H3[i3][i2_][i1_+1]*w1*(1.-w2);
-      if(ok1 && ok2p) s += emf->H3[i3][i2_+1][i1_]*(1.-w1)*w2;
-      if(ok1p && ok2p) s += emf->H3[i3][i2_+1][i1_+1]*w1*w2;
+      if(i1_>0 && i1_+1<emf->n1pad){
+	w1 = (o1 + i1*emf->d1uni -emf->x1s[i1_])/(emf->x1s[i1_+1]-emf->x1s[i1_]);
+	ok1 = true;
+      }else{
+	w1 = 0;
+	ok1 = false;
+      }
+      if(ok1 && ok2){
+	s = emf->H3[i3][i2_][i1_]*(1.-w1)*(1.-w2)
+	  + emf->H3[i3][i2_][i1_+1]*w1*(1.-w2)
+	  + emf->H3[i3][i2_+1][i1_]*(1.-w1)*w2
+	  + emf->H3[i3][i2_+1][i1_+1]*w1*w2;
+      }else
+	s = 0;
       kxky[i1+emf->n1fft*i2] = s;
     }
   }
   fftw_execute(fft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
   memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-  /* for(i2=0; i2<emf->n2fft; i2++){ */
-  /*   for(i1=0; i1<emf->n1fft; i1++){ */
-  /*     kxkyz0[i1+emf->n1fft*i2] *= emf->hw1[i1]*emf->hw2[i2]; */
-  /*   } */
-  /* } */
   
-  /*----------------------------------- H1 -------------------------------------*/
-  for(i2=0; i2<emf->n2fft; i2++){
-    for(i1=0; i1<emf->n1fft; i1++){
-      /* at z=0 level */
-      H1kxkyz0[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]*cexp(-I*emf->kx[i1]*0.5*emf->d1uni)*I*emf->kx[i1]/emf->sqrtkx2ky2[i2][i1];
-      /* at z=-0.5*emf->d3 level */
-      kxky[i1+emf->n1fft*i2] = H1kxkyz0[i1+emf->n1fft*i2]*exp(-emf->sqrtkx2ky2[i2][i1]*0.5*emf->d3uni);
-    }
-  }
-  if(emf->rd3>=1){//order=2
-    fftw_execute(ifft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_H1[0][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-  if(emf->rd3>=2){//order=4
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	/* at z=-1.5*emf->d3 level */
-	kxky[i1+emf->n1fft*i2] = H1kxkyz0[i1+emf->n1fft*i2]*exp(-emf->sqrtkx2ky2[i2][i1]*1.5*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_H1[1][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-  if(emf->rd3>=3){//order=6
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	/* at z=-1.5*emf->d3 level */
-	kxky[i1+emf->n1fft*i2] = H1kxkyz0[i1+emf->n1fft*i2]*exp(-emf->sqrtkx2ky2[i2][i1]*2.5*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_H1[2][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-
-  /*----------------------------------- H2 -------------------------------------*/
-  for(i2=0; i2<emf->n2fft; i2++){
-    for(i1=0; i1<emf->n1fft; i1++){
-      /* at z=0 level */
-      H2kxkyz0[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]*cexp(-I*emf->ky[i2]*0.5*emf->d2uni)*I*emf->ky[i2]/emf->sqrtkx2ky2[i2][i1];
-      /* at z=-0.5*emf->d3 level */
-      kxky[i1+emf->n1fft*i2] = H2kxkyz0[i1+emf->n1fft*i2]*exp(-emf->sqrtkx2ky2[i2][i1]*0.5*emf->d3uni);
-    }
-  }
-  if(emf->rd3>=1){//order=2
-    fftw_execute(ifft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_H2[0][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-  if(emf->rd3>=2){//order=4
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	/* at z=-1.5*emf->d3 level */
-	kxky[i1+emf->n1fft*i2] = H2kxkyz0[i1+emf->n1fft*i2]*exp(-emf->sqrtkx2ky2[i2][i1]*1.5*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_H2[1][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-  if(emf->rd3>=3){//order=6
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	/* at z=-1.5*emf->d3 level */
-	kxky[i1+emf->n1fft*i2] = H2kxkyz0[i1+emf->n1fft*i2]*exp(-emf->sqrtkx2ky2[i2][i1]*2.5*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_H2[2][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-
   /*---------------------------------------------------------------------
    * interpolation from dense (uniform) grid to coarse (nonuniform) grid
-   * use bilinear interpolation here, high order interpolation is instable
-   * when interpolating from dense grid to coarse grid
-   * in air-water boundary
    *---------------------------------------------------------------------*/
   for(i3=0; i3<emf->rd3; i3++){
     //----------------------------H1--------------------------------
+    for(i2=0; i2<emf->n2fft; i2++){
+      for(i1=0; i1<emf->n1fft; i1++){
+	/* at z=0 level */
+	t = kxkyz0[i1+emf->n1fft*i2]*cexp(-I*emf->kx[i1]*0.5*emf->d1uni)*I*emf->kx[i1]/(emf->kz[i2][i1]+1e-15);
+	/* at z=-0.5*emf->d3 level */
+	kxky[i1+emf->n1fft*i2] = t*exp(-emf->kz[i2][i1]*(i3+0.5)*emf->d3uni);
+      }
+    }
+    fftw_execute(ifft_airwave);
+    for(i2=0; i2<emf->n2fft; i2++){
+      for(i1=0; i1<emf->n1fft; i1++){
+	kxky[i1+emf->n1fft*i2]/= (emf->n1fft*emf->n2fft);
+      }
+    }
     o1 = emf->x1n[0];//origin of the coordinate
     o2 = emf->x2n[0] + 0.5*emf->d2uni;//origin of the coordinate
     for(i2=0; i2<emf->n2pad; i2++){
       i2_ = (emf->x2s[i2]-o2)/emf->d2uni;//index on uniform grid
-      ok2 = (i2_>=0 && i2_<emf->n2uni)?true:false;
-      w2 = ok2?(emf->x2s[i2] - i2_*emf->d2uni-o2)/emf->d2uni:0;
-      ok2p = (i2_+1>=0 && i2_+1<emf->n2uni)?true:false;
+      if(i2_>=0 && i2_+1<emf->n2uni){
+	ok2 = true;
+	w2 = (emf->x2s[i2] - i2_*emf->d2uni-o2)/emf->d2uni;
+      }else{
+	ok2 = false;
+	w2 = 0;
+      }
       for(i1=0; i1<emf->n1pad; i1++){
 	i1_ = (emf->x1n[i1]-o1)/emf->d1uni;//index on uniform grid
-	ok1 = (i1_>=0 && i1_<emf->n1uni)?true:false;
-	w1 = ok1?(emf->x1n[i1] - i1_*emf->d1uni-o1)/emf->d1uni:0;
-	ok1p = (i1_+1>=0 && i1_+1<emf->n1uni)?true:false;
+	if(i1_>=0 && i1_+1<emf->n1uni){
+	  ok1 = true;
+	  w1 = (emf->x1n[i1] - i1_*emf->d1uni-o1)/emf->d1uni;
+	}else{
+	  ok1 = false;
+	  w1 = 0;
+	}
 
-	s = 0;
-	if(ok1 && ok2) s += (1.-w1)*(1.-w2)*emf->uni_H1[i3][i2_][i1_];
-	if(ok1p && ok2)	s += w1*(1.-w2)*emf->uni_H1[i3][i2_][i1_+1];
-	if(ok1 && ok2p) s += (1.-w1)*w2*emf->uni_H1[i3][i2_+1][i1_];
-	if(ok1p && ok2p)  s += w1*w2*emf->uni_H1[i3][i2_+1][i1_+1];
-	emf->H1[emf->nbe-1-i3][i2][i1] = s;
+	if(ok1 && ok2){
+	  t = (1.-w1)*(1.-w2)*kxky[i1_ + emf->n1fft*i2_] + w1*(1.-w2)*kxky[i1_+1 + emf->n1fft*i2_]
+	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)] + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
+	}else
+	  t = 0;
+	emf->H1[emf->nbe-1-i3][i2][i1] = creal(t);
       }
     }
+    
     //----------------------------H2----------------------------------
+    for(i2=0; i2<emf->n2fft; i2++){
+      for(i1=0; i1<emf->n1fft; i1++){
+	/* at z=0 level */
+	t = kxkyz0[i1+emf->n1fft*i2]*cexp(-I*emf->ky[i2]*0.5*emf->d2uni)*I*emf->ky[i2]/(emf->kz[i2][i1] + 1e-15);
+	/* at z=-0.5*emf->d3 level */
+	kxky[i1+emf->n1fft*i2] = t*exp(-emf->kz[i2][i1]*(i3+0.5)*emf->d3uni);
+      }
+    }
+    fftw_execute(ifft_airwave);
+    for(i2=0; i2<emf->n2fft; i2++){
+      for(i1=0; i1<emf->n1fft; i1++){
+	kxky[i1+emf->n1fft*i2]/= (emf->n1fft*emf->n2fft);
+      }
+    }
     o1 = emf->x1n[0] + 0.5*emf->d1uni;//origin of the coordinate
     o2 = emf->x2n[0];//origin of the coordinate
     for(i2=0; i2<emf->n2pad; i2++){
       i2_ = (emf->x2n[i2]-o2)/emf->d2uni;//index on uniform grid
-      ok2 = (i2_>=0 && i2_<emf->n2uni)?true:false;
-      w2 = ok2?(emf->x2n[i2]-i2_*emf->d2uni-o2)/emf->d2uni:0;
-      ok2p = (i2_+1>=0 && i2_+1<emf->n2uni)?true:false;
+      if(i2_>=0 && i2_+1<emf->n2uni){
+	ok2 = true;
+	w2 = (emf->x2n[i2]-i2_*emf->d2uni-o2)/emf->d2uni;
+      }else{
+	ok2 = false;
+	w1 = 0;
+      }
       for(i1=0; i1<emf->n1pad; i1++){
 	i1_ = (emf->x1s[i1]-o1)/emf->d1uni;//index on uniform grid
-	ok1 = (i1_>=0 && i1_<emf->n1uni)?true:false;
-	w1 = ok1?(emf->x1s[i1]-i1_*emf->d1uni-o1)/emf->d1uni:0;
-	ok1p = (i1_+1>=0 && i1_+1<emf->n1uni)?true:false;
+	if(i1_>=0 && i1_+1<emf->n1uni){
+	  ok1 = true;
+	  w1 = (emf->x1s[i1]-i1_*emf->d1uni-o1)/emf->d1uni;
+	}else{
+	  ok1 = false;
+	  w1 = 0;
+	}
 
-	s = 0;
-	if(ok1 && ok2) s += (1.-w1)*(1.-w2)*emf->uni_H2[i3][i2_][i1_];
-	if(ok1p && ok2) s += w1*(1.-w2)*emf->uni_H2[i3][i2_][i1_+1];
-	if(ok1 && ok2p) s += (1.-w1)*w2*emf->uni_H2[i3][i2_+1][i1_];
-	if(ok1p && ok2p) s += w1*w2*emf->uni_H2[i3][i2_+1][i1_+1];
-	emf->H2[emf->nbe-1-i3][i2][i1] = s;
+	if(ok1 && ok2){
+	  t = (1.-w1)*(1.-w2)*kxky[i1_ + emf->n1fft* i2_]
+	    + w1*(1.-w2)*kxky[i1_+1 + emf->n1fft* i2_]
+	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)]
+	    + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
+	}else
+	  t = 0;
+	emf->H2[emf->nbe-1-i3][i2][i1] = creal(t);
       }
     }
   }
@@ -1755,176 +1655,167 @@ void airwave_bc_update_E(emf_t *emf)
 {
   int i1, i2, i3, i1_, i2_;
   float w1, w2, o1, o2, s;
-  bool ok1, ok2, ok1p, ok2p;
-  
+  bool ok1, ok2;
+  complex t;  
   /*----------------------------------E1------------------------------------*/
-  if(emf->rd3>=2){//order=4
-    memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-    i3 = emf->nbe;
-    o1 = emf->x1n[0] + 0.5*emf->d1uni;
-    o2 = emf->x2n[0];
-    for(i2=0; i2<emf->n2uni; i2++){
-      i2_ = emf->nu_i2[i2];
-      ok2 = (i2_>=0 && i2_+1<emf->n2pad)?true:false;
-      w2 = ok2?(o2 + i2*emf->d2uni -emf->x2n[i2_])/(emf->x2n[i2_+1]-emf->x2n[i2_]):0;
-      ok2 = (i2_>=0 && i2_<emf->n2pad)?true:false;
-      ok2p = (i2_+1>=0 && i2_+1<emf->n2pad)?true:false;
-      for(i1=0; i1<emf->n1uni; i1++){
-	i1_ = emf->nu_i1_s[i1];
-	ok1 = (i1_>=0 && i1_+1<emf->n1pad)?true:false;
-	w1 = ok1?(o1 + i1*emf->d1uni -emf->x1s[i1_])/(emf->x1s[i1_+1]-emf->x1s[i1_]):0;
-	ok1 = (i1_>=0 && i1_<emf->n1pad)?true:false;
-	ok1p = (i1_+1>=0 && i1_+1<emf->n1pad)?true:false;
-	
-	s = 0;
-	if(ok1 && ok2) s += emf->E1[i3][i2_][i1_]*(1.-w1)*(1.-w2);
-	if(ok1p && ok2) s += emf->E1[i3][i2_][i1_+1]*w1*(1.-w2);
-	if(ok1 && ok2p) s += emf->E1[i3][i2_+1][i1_]*(1.-w1)*w2;
-	if(ok1p && ok2p) s += emf->E1[i3][i2_+1][i1_+1]*w1*w2;
-	kxky[i1+emf->n1fft*i2] = s;
-      }
+  memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
+  i3 = emf->nbe;
+  o1 = emf->x1n[0] + 0.5*emf->d1uni;
+  o2 = emf->x2n[0];
+  for(i2=0; i2<emf->n2uni; i2++){
+    i2_ = emf->nu_i2[i2];
+    if(i2_>=0 && i2_+1<emf->n2pad){
+      ok2 = true;
+      w2 = (o2 + i2*emf->d2uni -emf->x2n[i2_])/(emf->x2n[i2_+1]-emf->x2n[i2_]);
+    }else{
+      ok2 = false;
+      w2 = 0;
     }
-    fftw_execute(fft_airwave);/* Ex(x, y, z=0)-->Hx(kx, ky, z=0) */
-    memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-    /* for(i2=0; i2<emf->n2fft; i2++){ */
-    /*   for(i1=0; i1<emf->n1fft; i1++){ */
-    /* 	kxkyz0[i1+emf->n1fft*i2] *= emf->hw1[i1]*emf->hw2[i2]; */
-    /*   } */
-    /* } */
-    if(emf->rd3>=2){
-      for(i2=0; i2<emf->n2fft; i2++){
-	for(i1=0; i1<emf->n1fft; i1++){
-	  kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->sqrtkx2ky2[i2][i1]*emf->d3uni);
-	}
+    for(i1=0; i1<emf->n1uni; i1++){
+      i1_ = emf->nu_i1_s[i1];
+      if(i1_>=0 && i1_+1<emf->n1pad){
+	ok1 = true;
+	w1 = (o1 + i1*emf->d1uni -emf->x1s[i1_])/(emf->x1s[i1_+1]-emf->x1s[i1_]);
+      }else{
+	ok1 = false;
+	w1 = 0;
       }
-      fftw_execute(ifft_airwave);
-      for(i2=0; i2<emf->n2uni; i2++){
-	for(i1=0; i1<emf->n1uni; i1++){
-	  emf->uni_E1[0][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-	}
-      }
+	
+      if(ok1 && ok2){
+	s = emf->E1[i3][i2_][i1_]*(1.-w1)*(1.-w2)
+	  + emf->E1[i3][i2_][i1_+1]*w1*(1.-w2)
+	  + emf->E1[i3][i2_+1][i1_]*(1.-w1)*w2
+	  + emf->E1[i3][i2_+1][i1_+1]*w1*w2;
+      }else
+	s = 0;
+      kxky[i1+emf->n1fft*i2] = s;
     }
   }
-  if(emf->rd3>=3){// order=6
+  fftw_execute(fft_airwave);/* Ex(x, y, z=0)-->Hx(kx, ky, z=0) */
+  memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
+  for(i3=0; i3<emf->rd3-1; i3++){
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->sqrtkx2ky2[i2][i1]*2*emf->d3uni);
+	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->kz[i2][i1]*(i3+1)*emf->d3uni);
       }
     }
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2uni; i2++){
       for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_E1[1][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
+	kxky[i1+emf->n1fft*i2] /= (emf->n1fft*emf->n2fft);
+      }
+    }
+
+    o2 = emf->x2n[0];//origin of the coordinate
+    o1 = emf->x1n[0] + 0.5*emf->d1uni;//origin of the coordinate
+    for(i2=0; i2<emf->n2pad; i2++){
+      i2_ = (emf->x2n[i2]-o2)/emf->d2uni;//index on uniform grid
+      if(i2_>=0 && i2_<emf->n2uni){
+	ok2 = true;
+	w2 = (emf->x2n[i2]-o2-i2_*emf->d2uni)/emf->d2uni;
+      }else{
+	ok2 = false;
+	w1 = 0;
+      }
+      for(i1=0; i1<emf->n1pad; i1++){
+	i1_ = (emf->x1s[i1]-o1)/emf->d1uni;//index on uniform grid
+	if(i1_>=0 && i1_<emf->n1uni){
+	  ok1 = true;
+	  w1 = (emf->x1s[i1]-o1-i1_*emf->d1uni)/emf->d1uni;
+	}else{
+	  ok1 = false;
+	  w1 = 0;
+	}
+
+	if(ok1 && ok2){
+	  t = (1.-w1)*(1-w2)*kxky[i1_ + emf->n1fft* i2_]
+	    + w1*(1-w2)*kxky[i1_+1 + emf->n1fft*i2_]
+	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)]
+	    + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
+	}else
+	  t = 0;
+	emf->E1[emf->nbe-1-i3][i2][i1] = creal(t);
       }
     }
   }
   
   /*-----------------------------E2---------------------------------------*/
-  if(emf->rd3>=2){//order 4
-    memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-    i3 = emf->nbe;
-    o1 = emf->x1n[0];
-    o2 = emf->x2n[0] + 0.5*emf->d2uni;
-    for(i2=0; i2<emf->n2uni; i2++){
-      i2_ = emf->nu_i2_s[i2];
-      ok2 = (i2_>=0 && i2_+1<emf->n2pad)?true:false;
-      w2 = ok2?(o2 + i2*emf->d2uni -emf->x2s[i2_])/(emf->x2s[i2_+1]-emf->x2s[i2_]):0;
-      ok2 = (i2_>=0 && i2_<emf->n2pad)?true:false;
-      ok2p = (i2_+1>=0 && i2_+1<emf->n2pad)?true:false;
-      for(i1=0; i1<emf->n1uni; i1++){
-	i1_ = emf->nu_i1[i1];
-	ok1 = (i1_>=0 && i1_+1<emf->n1pad)?true:false;
-	w1 = ok1?(o1 + i1*emf->d1uni -emf->x1n[i1_])/(emf->x1n[i1_+1]-emf->x1n[i1_]):0;
-	ok1 = (i1_>=0 && i1_<emf->n1pad)?true:false;
-	ok1p = (i1_+1>=0 && i1_+1<emf->n1pad)?true:false;
+  memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
+  i3 = emf->nbe;
+  o1 = emf->x1n[0];
+  o2 = emf->x2n[0] + 0.5*emf->d2uni;
+  for(i2=0; i2<emf->n2uni; i2++){
+    i2_ = emf->nu_i2_s[i2];
+    if(i2_>=0 && i2_+1<emf->n2pad){
+      ok2 = true;
+      w2 = (o2 + i2*emf->d2uni -emf->x2s[i2_])/(emf->x2s[i2_+1]-emf->x2s[i2_]);
+    }else{
+      ok2 = false;
+      w2 = 0;
+    }
+    for(i1=0; i1<emf->n1uni; i1++){
+      i1_ = emf->nu_i1[i1];
+      if(i1_>=0 && i1_+1<emf->n1pad){
+	ok1 = true;
+	w1 = (o1 + i1*emf->d1uni -emf->x1n[i1_])/(emf->x1n[i1_+1]-emf->x1n[i1_]);
+      }else{
+	ok1 = false;
+	w1 = 0;
+      }
 
-	s = 0;
-	if(ok1 && ok2) s += emf->E2[i3][i2_][i1_]*(1.-w1)*(1.-w2);
-	if(ok1p && ok2) s += emf->E2[i3][i2_][i1_+1]*w1*(1.-w2);
-	if(ok1 && ok2p) s += emf->E2[i3][i2_+1][i1_]*(1.-w1)*w2;
-	if(ok1p && ok2p) s += emf->E2[i3][i2_+1][i1_+1]*w1*w2;
-	kxky[i1+emf->n1fft*i2] = s;
-      }
-    }
-    fftw_execute(fft_airwave);/* Ex(x, y, z=0)-->Hx(kx, ky, z=0) */
-    memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-    /* for(i2=0; i2<emf->n2fft; i2++){ */
-    /*   for(i1=0; i1<emf->n1fft; i1++){ */
-    /* 	kxkyz0[i1+emf->n1fft*i2] *= emf->hw1[i1]*emf->hw2[i2]; */
-    /*   } */
-    /* } */
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->sqrtkx2ky2[i2][i1]*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_E2[0][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
+      if(ok1 && ok2){
+	s = emf->E2[i3][i2_][i1_]*(1.-w1)*(1.-w2)
+	  + emf->E2[i3][i2_][i1_+1]*w1*(1.-w2)
+	  + emf->E2[i3][i2_+1][i1_]*(1.-w1)*w2
+	  + emf->E2[i3][i2_+1][i1_+1]*w1*w2;
+      }else
+	s = 0;	
+      kxky[i1+emf->n1fft*i2] = s;
     }
   }
-  if(emf->rd3>=3){//order=6
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->sqrtkx2ky2[i2][i1]*2*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	emf->uni_E2[1][i2][i1] = creal(kxky[i1+emf->n1fft*i2]/(emf->n1fft*emf->n2fft));
-      }
-    }
-  }
-
-  /*-----------------------------------------------------------------------*/
-  /* now we interpolate from uniform grid to nonuniform grid */
-  /*-----------------------------------------------------------------------*/
+  fftw_execute(fft_airwave);/* Ex(x, y, z=0)-->Hx(kx, ky, z=0) */
+  memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
   for(i3=0; i3<emf->rd3-1; i3++){
-    //-----------------------E1-------------------
-    o2 = emf->x2n[0];//origin of the coordinate
-    o1 = emf->x1n[0] + 0.5*emf->d1uni;//origin of the coordinate
-    for(i2=0; i2<emf->n2pad; i2++){
-      i2_ = (emf->x2n[i2]-o2)/emf->d2uni;//index on uniform grid
-      ok2 = (i2_>=0 && i2_<emf->n2uni)?true:false;
-      w2 = ok2?(emf->x2n[i2]-o2-i2_*emf->d2uni)/emf->d2uni:0;
-      ok2p = (i2_+1>=0 && i2_+1<emf->n2uni)?true:false;
-      for(i1=0; i1<emf->n1pad; i1++){
-	i1_ = (emf->x1s[i1]-o1)/emf->d1uni;//index on uniform grid
-	ok1 = (i1_>=0 && i1_<emf->n1uni)?true:false;
-	w1 = ok1?(emf->x1s[i1]-o1-i1_*emf->d1uni)/emf->d1uni:0;
-	ok1p = (i1_+1>=0 && i1_+1<emf->n1uni)?true:false;
-
-	s = 0;
-	if(ok1 && ok2) s += (1.-w1)*(1-w2)*emf->uni_E1[i3][i2_][i1_];
-	if(ok1p && ok2) s += w1*(1-w2)*emf->uni_E1[i3][i2_][i1_+1];
-	if(ok1 && ok2p)	s += (1.-w1)*w2*emf->uni_E1[i3][i2_+1][i1_];
-	if(ok1p && ok2p) s += w1*w2*emf->uni_E1[i3][i2_+1][i1_+1];
-	emf->E1[emf->nbe-1-i3][i2][i1] = s;
+    for(i2=0; i2<emf->n2fft; i2++){
+      for(i1=0; i1<emf->n1fft; i1++){
+	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->kz[i2][i1]*(i3+1)*emf->d3uni);
       }
     }
-    //--------------------E2----------------------------
+    fftw_execute(ifft_airwave);
+    for(i2=0; i2<emf->n2uni; i2++){
+      for(i1=0; i1<emf->n1uni; i1++){
+	kxky[i1+emf->n1fft*i2] /= (emf->n1fft*emf->n2fft);
+      }
+    }
     o2 = emf->x2n[0] + 0.5*emf->d2uni;//origin of the coordinate
     o1 = emf->x1n[0];//origin of the coordinate
     for(i2=0; i2<emf->n2pad; i2++){
       i2_ = (emf->x2s[i2]-o2)/emf->d2uni;//index on uniform grid
-      ok2 = (i2_>=0 && i2_<emf->n2uni)?true:false;
-      w2 = ok2?(emf->x2s[i2]-o2-i2_*emf->d2uni)/emf->d2uni:0;
-      ok2p = (i2_+1>=0 && i2_+1<emf->n2uni)?true:false;
+      if(i2_>=0 && i2_<emf->n2uni){
+	ok2 = true;
+	w2 = (emf->x2s[i2]-o2-i2_*emf->d2uni)/emf->d2uni;
+      }else{
+	ok2 = false;
+	w2 = 0;
+      }
       for(i1=0; i1<emf->n1pad; i1++){
 	i1_ = (emf->x1n[i1]-o1)/emf->d1uni;//index on uniform grid
-	ok1 = (i1_>=0 && i1_<emf->n1uni)?true:false;
-	w1 = ok1?(emf->x1n[i1]-o1-i1_*emf->d1uni)/emf->d1uni:0;
-	ok1 = (i1_+1>=0 && i1_+1<emf->n1uni)?true:false;
+	if(i1_>=0 && i1_<emf->n1uni){
+	  ok1 = true;
+	  w1 = (emf->x1n[i1]-o1-i1_*emf->d1uni)/emf->d1uni;
+	}else{
+	  ok1 = false;
+	  w1 = 0;
+	}
 
-	s = 0;
-	if(ok1 && ok2) s += (1.-w1)*(1-w2)*emf->uni_E2[i3][i2_][i1_];
-	if(ok1p && ok2) s += w1*(1-w2)*emf->uni_E2[i3][i2_][i1_+1];
-	if(ok1 && ok2p)	s += (1.-w1)*w2*emf->uni_E2[i3][i2_+1][i1_];
-	if(ok1p && ok2p) s += w1*w2*emf->uni_E2[i3][i2_+1][i1_+1];
-	emf->E2[emf->nbe-1-i3][i2][i1] = s;
+	if(ok1 && ok2){
+	  t = (1.-w1)*(1-w2)*kxky[i1_ + emf->n1fft*i2_]
+	    + w1*(1-w2)*kxky[i1_+1 + emf->n1fft*i2_]
+	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)]
+	    + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
+	}else
+	  t = 0;
+	emf->E2[emf->nbe-1-i3][i2][i1] = creal(t);
       }
     }
 
@@ -1934,7 +1825,7 @@ void airwave_bc_update_E(emf_t *emf)
 
 
 /*----------------------------------------------------------------------------*/
-void interpolation_init(acqui_t *acqui, emf_t *emf, 
+void interpolation_init(acq_t *acqui, emf_t *emf, 
 			interp_t *interp_rg, interp_t *interp_sg)
 {
   if(acqui->nsubsrc%2==0) err("nsubsrc must be odd number!");
@@ -2035,7 +1926,7 @@ void interpolation_close(emf_t *emf, interp_t *interp_rg, interp_t *interp_sg)
  * From the above expression, we know all weights wi (i=0, ..., n) can be obtained by
  * setting f(xi)=1 and f(xj)=0 (for all j\neq i).
  *-------------------------------------------------------------------------------*/
-void interpolation_weights(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg)
+void interpolation_weights(acq_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg)
 {
   const float eps=1e-3*MIN(emf->dx1min, emf->dx2min);
   
@@ -2234,7 +2125,7 @@ void interpolation_weights(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, inte
   free(ff);
 }
 
-void inject_electric_src_fwd(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg, int it)
+void inject_electric_src_fwd(acq_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg, int it)
 /*< inject a source time function into EM field >*/
 {
   int ic, isrc, isub, i1, i2, i3, ix1, ix2, ix3, i1_, i2_, i3_;
@@ -2326,7 +2217,7 @@ void inject_electric_src_fwd(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, in
 void compute_green_function(emf_t *emf)
 {
   int ifreq, it, i1, i2, i3;
-  float _Complex s, t, omegap, src_fd;
+  float _Complex omegap, src_fd;
 
   int i1min=emf->nb;
   int i2min=emf->nb;
@@ -2340,7 +2231,7 @@ void compute_green_function(emf_t *emf)
     omegap = (1.0+I)*sqrtf(emf->omega0*emf->omegas[ifreq]);/* omega' in fictitous wave domain */
     src_fd=0.;
     for(it=0; it<emf->nt; ++it)  src_fd += emf->stf[it]*cexp(I*omegap*it*emf->dt);
-    s = csqrt(-I*0.5*emf->omegas[ifreq]/emf->omega0);
+    src_fd /= csqrt(-I*0.5*emf->omegas[ifreq]/emf->omega0);
 
     for(i3=i3min; i3<=i3max; ++i3){
       for(i2=i2min; i2<=i2max; ++i2){
@@ -2348,12 +2239,6 @@ void compute_green_function(emf_t *emf)
 	  emf->fwd_E1[ifreq][i3][i2][i1] /= src_fd;
 	  emf->fwd_E2[ifreq][i3][i2][i1] /= src_fd;
 	  emf->fwd_E3[ifreq][i3][i2][i1] /= src_fd;
-	  emf->fwd_E1[ifreq][i3][i2][i1] *= s;
-	  emf->fwd_E2[ifreq][i3][i2][i1] *= s;
-	  emf->fwd_E3[ifreq][i3][i2][i1] *= s;
-
-	  t = 2.*emf->omega0/emf->inveps33[i3][i2][i1];//sigma=2*omega0*epsil
-	  emf->fwd_Jz[ifreq][i3][i2][i1] = t*emf->fwd_E3[ifreq][i3][i2][i1];
 	}
       }
     }
@@ -2361,7 +2246,7 @@ void compute_green_function(emf_t *emf)
   }
 }
 
-void extract_emf(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg)
+void extract_emf(acq_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg)
 /*< extract data from EM field by interpolation >*/
 {   
   int ic, irec, isub, ifreq, i1, i2, i3, ix1, ix2, ix3, i1_, i2_, i3_;
@@ -2417,7 +2302,6 @@ void dtft_emf_init(emf_t *emf, int adj)
     emf->adj_H1 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
     emf->adj_H2 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
     emf->adj_H3 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
-    emf->adj_Jz = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
 
     memset(&emf->adj_E1[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
     memset(&emf->adj_E2[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
@@ -2425,7 +2309,6 @@ void dtft_emf_init(emf_t *emf, int adj)
     memset(&emf->adj_H1[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
     memset(&emf->adj_H2[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
     memset(&emf->adj_H3[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
-    memset(&emf->adj_Jz[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
 
   }else{
     emf->fwd_E1 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
@@ -2434,7 +2317,6 @@ void dtft_emf_init(emf_t *emf, int adj)
     emf->fwd_H1 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
     emf->fwd_H2 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
     emf->fwd_H3 = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
-    emf->fwd_Jz = alloc4complexf(emf->n1pad, emf->n2pad, emf->n3pad, emf->nfreq);
 
     memset(&emf->fwd_E1[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
     memset(&emf->fwd_E2[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
@@ -2442,7 +2324,6 @@ void dtft_emf_init(emf_t *emf, int adj)
     memset(&emf->fwd_H1[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
     memset(&emf->fwd_H2[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
     memset(&emf->fwd_H3[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
-    memset(&emf->fwd_Jz[0][0][0][0], 0, emf->nfreq*emf->n123pad*sizeof(float _Complex));
   }
 
 }
@@ -2456,7 +2337,6 @@ void dtft_emf_close(emf_t *emf, int adj)
     free4complexf(emf->adj_H1);
     free4complexf(emf->adj_H2);
     free4complexf(emf->adj_H3);
-    free4complexf(emf->adj_Jz);
 
   }else{
     free4complexf(emf->fwd_E1);
@@ -2465,7 +2345,6 @@ void dtft_emf_close(emf_t *emf, int adj)
     free4complexf(emf->fwd_H1);
     free4complexf(emf->fwd_H2);
     free4complexf(emf->fwd_H3);
-    free4complexf(emf->fwd_Jz);
   }
 
 }
@@ -2550,7 +2429,7 @@ int check_convergence(emf_t *emf)
 }
 
 
-void write_data(acqui_t *acqui, emf_t *emf, char *fname)
+void write_data(acq_t *acqui, emf_t *emf, char *fname)
 /*< write synthetic data according to shot/process index >*/
 {
   FILE *fp;
@@ -2580,12 +2459,10 @@ int main(int argc, char* argv[])
 {
   int it, adj, k;
   float beta, td, tmp;
-  acqui_t *acqui;
+  acq_t *acqui;
   emf_t *emf;
   interp_t *interp_rg, *interp_sg;
   char fname[sizeof("emf_0000.txt")];
-  FILE *fp;
-  int i1, i2, i3, i1_, i2_, i3_;
   
   MPI_Init(&argc, &argv);
   ierr = MPI_Comm_rank(MPI_COMM_WORLD, &iproc);
@@ -2593,13 +2470,13 @@ int main(int argc, char* argv[])
 
   initargs(argc, argv);
 
-  acqui = (acqui_t *)malloc(sizeof(acqui_t));
-  emf = (emf_t *)malloc(sizeof(emf_t));
-  interp_rg = (interp_t *)malloc(sizeof(interp_t));
-  interp_sg = (interp_t *)malloc(sizeof(interp_t));
+  acqui = malloc(sizeof(acq_t));
+  emf = malloc(sizeof(emf_t));
+  interp_rg = malloc(sizeof(interp_t));
+  interp_sg = malloc(sizeof(interp_t));
 
   emf_init(emf);
-  acqui_init(acqui, emf);
+  acq_init(acqui, emf);
 
   adj = 0;
   extend_model_init(emf);
@@ -2628,10 +2505,10 @@ int main(int argc, char* argv[])
     nufdtd_curlH(emf);
     inject_electric_src_fwd(acqui, emf, interp_rg, interp_sg, it);
     nufdtd_update_E(emf); 
-    airwave_bc_update_E(emf);      
+    //airwave_bc_update_E(emf);      
     
     nufdtd_curlE(emf); 
-    nufdtd_update_H(emf); 
+    nufdtd_update_H(emf);
     airwave_bc_update_H(emf);    
     
     dtft_emf(emf, it, adj);
@@ -2654,7 +2531,7 @@ int main(int argc, char* argv[])
   airwave_bc_close(emf);
 
   emf_close(emf);
-  acqui_close(acqui);
+  acq_close(acqui);
   interpolation_close(emf, interp_rg, interp_sg);
 
   free(emf->stf);
@@ -2663,7 +2540,6 @@ int main(int argc, char* argv[])
   free(emf);
   free(interp_rg);
   free(interp_sg);
-
   
   MPI_Finalize();
   return 0;

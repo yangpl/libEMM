@@ -6,8 +6,6 @@ n3=101
 d1=100 #100m
 d2=100 #100m
 d3=50 #100m
-nb=18
-
 
 export OMP_NUM_THREADS=8
 time mpirun -np 1 ../fdtd \
@@ -25,11 +23,10 @@ time mpirun -np 1 ../fdtd \
        x3min=0 x3max=5000 \
        n1=$n1 n2=$n2 n3=$n3 \
        d1=$d1 d2=$d2 d3=$d3 \
-       nb=$nb \
        freqs=0.25,0.75,1.25 \
-       rd1=3 \
-       rd2=3 \
-       rd3=3 \
+       rd1=2 \
+       rd2=2 \
+       rd3=2 \
        nugrid=1 \
        fx1nu=x1nu \
        fx2nu=x2nu \
