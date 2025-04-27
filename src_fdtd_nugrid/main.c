@@ -1009,13 +1009,13 @@ void nufdtd_curlE(emf_t *emf)
   int i2max = emf->n2pad-1-emf->rd2;
   int i3max = emf->n3pad-1-emf->rd3;
 
-  int i1, i2, i3, j1, j2, j3;
+  int i1, i2, i3, j1, j2, j3, k1, k2, k3;
   float D2E3, D3E2, D3E1, D1E3, D1E2, D2E1;
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none)					\
   schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3,					\
+  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,				\
 	  D2E3, D3E2, D3E1, D1E3, D1E2, D2E1)				\
   shared(i1min, i1max, i2min, i2max, i3min, i3max, emf)
 #endif
@@ -1112,28 +1112,43 @@ void nufdtd_curlE(emf_t *emf)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  D1E3 /= emf->damp[i1];
-	  D1E2 /= emf->damp[i1];
+	  emf->memD1E3[i3][i2][i1] = emf->bpml[i1]*emf->memD1E3[i3][i2][i1] + emf->apml[i1]*D1E3;
+	  emf->memD1E2[i3][i2][i1] = emf->bpml[i1]*emf->memD1E2[i3][i2][i1] + emf->apml[i1]*D1E2;
+	  D1E3 += emf->memD1E3[i3][i2][i1];
+	  D1E2 += emf->memD1E2[i3][i2][i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
-	  D1E3 /= emf->damp[j1];
-	  D1E2 /= emf->damp[j1];
+	  k1 = j1+emf->nb;
+	  emf->memD1E3[i3][i2][k1] = emf->bpml[j1]*emf->memD1E3[i3][i2][k1] + emf->apml[j1]*D1E3;
+	  emf->memD1E2[i3][i2][k1] = emf->bpml[j1]*emf->memD1E2[i3][i2][k1] + emf->apml[j1]*D1E2;
+	  D1E3 += emf->memD1E3[i3][i2][k1];
+	  D1E2 += emf->memD1E2[i3][i2][k1];
 	}
 	if(i2<emf->nb){
-	  D2E3 /= emf->damp[i2];
-	  D2E1 /= emf->damp[i2];
+	  emf->memD2E3[i3][i2][i1] = emf->bpml[i2]*emf->memD2E3[i3][i2][i1] + emf->apml[i2]*D2E3;
+	  emf->memD2E1[i3][i2][i1] = emf->bpml[i2]*emf->memD2E1[i3][i2][i1] + emf->apml[i2]*D2E1;
+	  D2E3 += emf->memD2E3[i3][i2][i1];
+	  D2E1 += emf->memD2E1[i3][i2][i1];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
-	  D2E3 /= emf->damp[j2];
-	  D2E1 /= emf->damp[j2];
+	  k2 = j2+emf->nb;
+	  emf->memD2E3[i3][k2][i1] = emf->bpml[j2]*emf->memD2E3[i3][k2][i1] + emf->apml[j2]*D2E3;
+	  emf->memD2E1[i3][k2][i1] = emf->bpml[j2]*emf->memD2E1[i3][k2][i1] + emf->apml[j2]*D2E1;
+	  D2E3 += emf->memD2E3[i3][k2][i1];
+	  D2E1 += emf->memD2E1[i3][k2][i1];
 	}
 	if(i3<emf->nb){
-	  D3E2 /= emf->damp[i3];
-	  D3E1 /= emf->damp[i3];
+	  emf->memD3E2[i3][i2][i1] = emf->bpml[i3]*emf->memD3E2[i3][i2][i1] + emf->apml[i3]*D3E2;
+	  emf->memD3E1[i3][i2][i1] = emf->bpml[i3]*emf->memD3E1[i3][i2][i1] + emf->apml[i3]*D3E1;
+	  D3E2 += emf->memD3E2[i3][i2][i1];
+	  D3E1 += emf->memD3E1[i3][i2][i1];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
-	  D3E2 /= emf->damp[j3];
-	  D3E1 /= emf->damp[j3];
+	  k3 = j3+emf->nb;
+	  emf->memD3E2[k3][i2][i1] = emf->bpml[j3]*emf->memD3E2[k3][i2][i1] + emf->apml[j3]*D3E2;
+	  emf->memD3E1[k3][i2][i1] = emf->bpml[j3]*emf->memD3E1[k3][i2][i1] + emf->apml[j3]*D3E1;
+	  D3E2 += emf->memD3E2[k3][i2][i1];
+	  D3E1 += emf->memD3E1[k3][i2][i1];
 	}
 
 	emf->curlE1[i3][i2][i1] = D2E3-D3E2;
@@ -1184,13 +1199,13 @@ void nufdtd_curlH(emf_t *emf)
   int i2max = emf->n2pad-emf->rd2;
   int i3max = emf->n3pad-emf->rd3;
 
-  int i1, i2, i3, j1, j2, j3;
+  int i1, i2, i3, j1, j2, j3, k1, k2, k3;
   float D2H3, D3H2, D3H1, D1H3, D1H2, D2H1;
 
 #ifdef _OPENMP
 #pragma omp parallel for default(none)					\
   schedule(static)							\
-  private(i1, i2, i3, j1, j2, j3,					\
+  private(i1, i2, i3, j1, j2, j3, k1, k2, k3,				\
 	  D2H3, D3H2, D3H1, D1H3, D1H2, D2H1)				\
   shared(i1min, i1max, i2min, i2max, i3min, i3max, emf)
 #endif
@@ -1287,29 +1302,45 @@ void nufdtd_curlH(emf_t *emf)
 
 	/* CPML: mem=memory variable */
 	if(i1<emf->nb){
-	  D1H3 /= emf->damp[i1];
-	  D1H2 /= emf->damp[i1];
+	  emf->memD1H3[i3][i2][i1] = emf->bpml[i1]*emf->memD1H3[i3][i2][i1] + emf->apml[i1]*D1H3;
+	  emf->memD1H2[i3][i2][i1] = emf->bpml[i1]*emf->memD1H2[i3][i2][i1] + emf->apml[i1]*D1H2;
+	  D1H3 += emf->memD1H3[i3][i2][i1];
+	  D1H2 += emf->memD1H2[i3][i2][i1];
 	}else if(i1>emf->n1pad-1-emf->nb){
 	  j1 = emf->n1pad-1-i1;
-	  D1H3 /= emf->damp[j1];
-	  D1H2 /= emf->damp[j1];
+	  k1 = j1+emf->nb;
+	  emf->memD1H3[i3][i2][k1] = emf->bpml[j1]*emf->memD1H3[i3][i2][k1] + emf->apml[j1]*D1H3;
+	  emf->memD1H2[i3][i2][k1] = emf->bpml[j1]*emf->memD1H2[i3][i2][k1] + emf->apml[j1]*D1H2;
+	  D1H3 += emf->memD1H3[i3][i2][k1];
+	  D1H2 += emf->memD1H2[i3][i2][k1];
 	}
 	if(i2<emf->nb){
-	  D2H3 /= emf->damp[i2];
-	  D2H1 /= emf->damp[i2];
+	  emf->memD2H3[i3][i2][i1] = emf->bpml[i2]*emf->memD2H3[i3][i2][i1] + emf->apml[i2]*D2H3;
+	  emf->memD2H1[i3][i2][i1] = emf->bpml[i2]*emf->memD2H1[i3][i2][i1] + emf->apml[i2]*D2H1;
+	  D2H3 += emf->memD2H3[i3][i2][i1];
+	  D2H1 += emf->memD2H1[i3][i2][i1];
 	}else if(i2>emf->n2pad-1-emf->nb){
 	  j2 = emf->n2pad-1-i2;
-	  D2H3 /= emf->damp[j2];
-	  D2H1 /= emf->damp[j2];
+	  k2 = j2+emf->nb;
+	  emf->memD2H3[i3][k2][i1] = emf->bpml[j2]*emf->memD2H3[i3][k2][i1] + emf->apml[j2]*D2H3;
+	  emf->memD2H1[i3][k2][i1] = emf->bpml[j2]*emf->memD2H1[i3][k2][i1] + emf->apml[j2]*D2H1;
+	  D2H3 += emf->memD2H3[i3][k2][i1];
+	  D2H1 += emf->memD2H1[i3][k2][i1];
 	}
 	if(i3<emf->nb){
-	  D3H2 /= emf->damp[i3];
-	  D3H1 /= emf->damp[i3];
+	  emf->memD3H2[i3][i2][i1] = emf->bpml[i3]*emf->memD3H2[i3][i2][i1] + emf->apml[i3]*D3H2;
+	  emf->memD3H1[i3][i2][i1] = emf->bpml[i3]*emf->memD3H1[i3][i2][i1] + emf->apml[i3]*D3H1;
+	  D3H2 += emf->memD3H2[i3][i2][i1];
+	  D3H1 += emf->memD3H1[i3][i2][i1];
 	}else if(i3>emf->n3pad-1-emf->nb){
 	  j3 = emf->n3pad-1-i3;
-	  D3H2 /= emf->damp[j3];
-	  D3H1 /= emf->damp[j3];
+	  k3 = j3+emf->nb;
+	  emf->memD3H2[k3][i2][i1] = emf->bpml[j3]*emf->memD3H2[k3][i2][i1] + emf->apml[j3]*D3H2;
+	  emf->memD3H1[k3][i2][i1] = emf->bpml[j3]*emf->memD3H1[k3][i2][i1] + emf->apml[j3]*D3H1;
+	  D3H2 += emf->memD3H2[k3][i2][i1];
+	  D3H1 += emf->memD3H1[k3][i2][i1];
 	}
+
 
 	emf->curlH1[i3][i2][i1] = D2H3-D3H2;
 	emf->curlH2[i3][i2][i1] = D3H1-D1H3;
