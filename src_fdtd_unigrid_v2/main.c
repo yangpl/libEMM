@@ -15,10 +15,6 @@
 
 int iproc, nproc, ierr;
 
-#define PI 3.14159265358979323846264
-#define mu0 (4.*PI*1e-7)
-
-
 typedef struct {
   int nsrc;/* number of sources on each processor, default=1 */
   int nrec;/* number of receivers on each processor */
@@ -892,12 +888,9 @@ void fdtd_update_E(emf_t *emf, int it)
   for(i3=0; i3<emf->n3pad; ++i3){
     for(i2=0; i2<emf->n2pad; ++i2){
       for(i1=0; i1<emf->n1pad; ++i1){
-	/* E1=Ex[i1+0.5, i2, i3]; emf->inveps11=emf->inveps11[i1+0.5, i2, i3] */
-	emf->E1[i3][i2][i1] += emf->dt*emf->inveps11[i3][i2][i1]* emf->curlH1[i3][i2][i1];
-	/* emf->E2=emf->Ey[i1, i2+0.5, i3]; emf->inveps11=emf->inveps22[i1, i2+0.5, i3] */
-	emf->E2[i3][i2][i1] += emf->dt*emf->inveps22[i3][i2][i1]* emf->curlH2[i3][i2][i1];
-	/* emf->E3=emf->Ez[i1, i2, i3+0.5]; emf->inveps11=emf->inveps33[i1, i2, i3+0.5] */
-	emf->E3[i3][i2][i1] += emf->dt*emf->inveps33[i3][i2][i1]* emf->curlH3[i3][i2][i1];
+	emf->E1[i3][i2][i1] += emf->dt*emf->inveps11[i3][i2][i1]*emf->curlH1[i3][i2][i1];
+	emf->E2[i3][i2][i1] += emf->dt*emf->inveps22[i3][i2][i1]*emf->curlH2[i3][i2][i1];
+	emf->E3[i3][i2][i1] += emf->dt*emf->inveps33[i3][i2][i1]*emf->curlH3[i3][i2][i1];
       }
     }
   }
@@ -1468,6 +1461,7 @@ void inject_electric_src_fwd(acqui_t *acqui, emf_t *emf, interp_t *interp_rg, in
 
 fftw_complex *emf_kxky, *emf_kxkyz0;
 fftw_plan fft_airwave, ifft_airwave;
+float *kx, *ky;
 
 int fft_next_fast_size(int n)
 {
@@ -1476,7 +1470,7 @@ int fft_next_fast_size(int n)
   /* while(m<=n) m *= 2; */
   /* return 2*m; */
 
-  p = 4*n;
+  p = 2*n;
   while(1) {
     m=p;
     while ( (m%2) == 0 ) m/=2;
@@ -1494,7 +1488,6 @@ void airwave_bc_init(emf_t *emf)
 {
   float dkx, dky, kz;
   int i1, i2, i3;
-  float *kx, *ky;
   
   emf->n1fft = fft_next_fast_size(emf->n1pad);
   emf->n2fft = fft_next_fast_size(emf->n2pad);
@@ -1549,9 +1542,6 @@ void airwave_bc_init(emf_t *emf)
       }
     }
   }
- 
-  free(kx);
-  free(ky);
 }
 
 void airwave_bc_close(emf_t *emf)
@@ -1564,6 +1554,9 @@ void airwave_bc_close(emf_t *emf)
   fftw_free(emf_kxkyz0);
   fftw_destroy_plan(fft_airwave);
   fftw_destroy_plan(ifft_airwave);  
+ 
+  free(kx);
+  free(ky);
 }
 
 void airwave_bc_update_H(emf_t *emf)

@@ -63,14 +63,6 @@ free2complex	free a 2-d array of complexs
 alloc3complex	allocate a 3-d array of complexs
 free3complex	free a 3-d array of complexs
 
-alloc1dcomplex   allocate a 1-d array of complexs
-realloc1dcomplex re-allocate a 1-d array of complexs
-free1dcomplex    free a 1-d array of complexs
-alloc2dcomplex   allocate a 2-d array of complexs
-free2dcomplex    free a 2-d array of complexs
-alloc3dcomplex   allocate a 3-d array of complexs
-free3dcomplex    free a 3-d array of complexs
-
 ******************************************************************************
 Function Prototypes:
 void *alloc1 (size_t n1, size_t size);
@@ -718,55 +710,55 @@ void free4complexf(float _Complex ****p)
 }
 
 /* allocate a 1-d array of complexs */
-double _Complex *alloc1complex(size_t n1)
+complex *alloc1complex(size_t n1)
 {
-    return (double _Complex*)alloc1(n1,sizeof(double _Complex));
+    return (complex*)alloc1(n1,sizeof(complex));
 }
 
 /* re-allocate a 1-d array of complexs */
-double _Complex *realloc1complex(double _Complex *v, size_t n1)
+complex *realloc1complex(complex *v, size_t n1)
 {
-    return (double _Complex*)realloc1(v,n1,sizeof(double _Complex));
+    return (complex*)realloc1(v,n1,sizeof(complex));
 }
 
 /* free a 1-d array of complexs */
-void free1complex(double _Complex *p)
+void free1complex(complex *p)
 {
-    free1(p);
+  free1(p);
 }
 
 /* allocate a 2-d array of complexs */
-double _Complex **alloc2complex(size_t n1, size_t n2)
+complex **alloc2complex(size_t n1, size_t n2)
 {
-    return (double _Complex**)alloc2(n1,n2,sizeof(double _Complex));
+    return (complex**)alloc2(n1,n2,sizeof(complex));
 }
 
 /* free a 2-d array of complexs */
-void free2complex(double _Complex **p)
+void free2complex(complex **p)
 {
     free2((void**)p);
 }
 
 /* allocate a 3-d array of complexs */
-double _Complex ***alloc3complex(size_t n1, size_t n2, size_t n3)
+complex ***alloc3complex(size_t n1, size_t n2, size_t n3)
 {
-    return (double _Complex***)alloc3(n1,n2,n3,sizeof(double _Complex));
+    return (complex***)alloc3(n1,n2,n3,sizeof(complex));
 }
 
 /* free a 3-d array of complexs */
-void free3complex(double _Complex ***p)
+void free3complex(complex ***p)
 {
     free3((void***)p);
 }
 
 /* allocate a 4-d array of complexs */
-double _Complex ****alloc4complex(size_t n1, size_t n2, size_t n3, size_t n4)
+complex ****alloc4complex(size_t n1, size_t n2, size_t n3, size_t n4)
 {
-    return (double _Complex****)alloc4(n1,n2,n3,n4,sizeof(double _Complex));
+    return (complex****)alloc4(n1,n2,n3,n4,sizeof(complex));
 }
 
 /* free a 4-d array of complexs */
-void free4complex(double _Complex ****p)
+void free4complex(complex ****p)
 {
     free4((void****)p);
 }
