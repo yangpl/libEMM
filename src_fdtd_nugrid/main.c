@@ -63,15 +63,8 @@ typedef struct {
   int nh;
   float *hx, *hz;
   
-  float *kx, *ky;
-  float **kz;
-
   int n1fft, n2fft;
-  float d1uni, d2uni, d3uni; //grid spacing of a uniform grid for air-water
-  int n1uni, n2uni;//number of intervals for uniform grid 
-  int *nu_i1, *nu_i2, *nu_i1_s, *nu_i2_s;
-  float ***uni_H1, ***uni_H2, ***uni_E1, ***uni_E2;//interpolated fields on uniform grid
-  
+  float d1fft, d2fft, d3fft;
   float dx1_start, dx1_end, dx2_start, dx2_end, dx3_start, dx3_end;
   float *apml, *bpml, *damp;
   
@@ -282,8 +275,6 @@ void emf_close(emf_t *emf)
   free3float(emf->rho11); 
   free3float(emf->rho22);
   free3float(emf->rho33);
-
-
 }
 
 
@@ -1406,20 +1397,21 @@ int find_index(int n, float *x, float val)
 }
 
 
-fftw_complex *H1kxkyz0, *H2kxkyz0, *kxky, *kxkyz0;
+fftw_complex *emf_kxky, *emf_kxkyz0;
 fftw_plan fft_airwave, ifft_airwave;
+float *kx, *ky;
 
 int fft_next_fast_size(int n)
 {
   int m;
-  int p = 2*n;
     
   /* m = 1; */
   /* while(m<p) m *= 2; */
   /* return m; */
 
+  int p = 2*n;
   while(1) {
-    m=p;
+    m = p;
     while ( (m%2) == 0 ) m/=2;
     while ( (m%3) == 0 ) m/=3;
     while ( (m%5) == 0 ) m/=5;
@@ -1434,430 +1426,165 @@ int fft_next_fast_size(int n)
 /*--------------------------------------------------------------------------*/
 void airwave_bc_init(emf_t *emf)
 {
-  float dkx, dky, o1, o2;
-  int i1, i2, j1, j2;
-  float x0;
-
-  emf->d1uni = emf->dx1min; //0.5*(emf->dx1min+emf->dx1_start);
-  emf->d2uni = emf->dx2min; //0.5*(emf->dx2min+emf->dx2_start);
-  emf->d3uni = emf->dx3min;
-  emf->n1uni = ceilf( (emf->x1n[emf->n1pad-1] - emf->x1n[0])/emf->d1uni + 1);
-  emf->n2uni = ceilf( (emf->x2n[emf->n2pad-1] - emf->x2n[0])/emf->d2uni + 1);
-  if(iproc==0){
-    printf("Airwave uniform grid: d1uni=%g d2uni=%g \n", emf->d1uni, emf->d2uni);
-    printf("Uniform grid size: n1uni=%d n2uni=%d\n", emf->n1uni, emf->n2uni);
-  }
+  float dkx, dky;
+  int i1, i2;
   
-  /*-----------------------------------------------------*/
-  /* determine the closest index on nonuniform grid for a point in uniform grid */
-  /*-----------------------------------------------------*/
-  emf->nu_i1 = alloc1int(emf->n1uni);
-  emf->nu_i2 = alloc1int(emf->n2uni);
-  emf->nu_i1_s = alloc1int(emf->n1uni);/* shift half cell on uniform grid in x coordinate */
-  emf->nu_i2_s = alloc1int(emf->n2uni);/* shift half cell on uniform grid in x coordinate */
-  o1 = emf->x1n[0];
-  for(i1=0; i1<emf->n1uni; i1++){
-    x0 = o1 + i1*emf->d1uni;
-    j1 = find_index(emf->n1pad, emf->x1n, x0);
-    emf->nu_i1[i1] = j1;//index on NU grid
-  }
-  o1 = emf->x1n[0] + 0.5*emf->d1uni;
-  for(i1=0; i1<emf->n1uni; i1++){
-    x0 = o1 + i1*emf->d1uni;
-    j1 = find_index(emf->n1pad, emf->x1s, x0);
-    emf->nu_i1_s[i1] = j1;
-  }
-  o2 = emf->x2n[0];
-  for(i2=0; i2<emf->n2uni; i2++){
-    x0 = o2 + i2*emf->d2uni;
-    j2 = find_index(emf->n2pad, emf->x2n, x0);
-    emf->nu_i2[i2] = j2;//index on NU grid
-  }
-  o2 = emf->x2n[0] +0.5*emf->d2uni;
-  for(i2=0; i2<emf->n2uni; i2++){
-    x0 = o2 + i2*emf->d2uni;
-    j2 = find_index(emf->n2pad, emf->x2s, x0);
-    emf->nu_i2_s[i2] = j2;
-  }
-
-  /*----------------------------------------------------------*/
-  emf->n1fft = fft_next_fast_size(emf->n1uni);
-  emf->n2fft = fft_next_fast_size(emf->n2uni);
+  emf->n1fft = fft_next_fast_size(emf->n1pad);
+  emf->n2fft = fft_next_fast_size(emf->n2pad);
   if(iproc==0) printf("[n1fft, n2fft]=[%d, %d]\n", emf->n1fft, emf->n2fft);
-  
-  emf->kx = alloc1float(emf->n1fft);
-  emf->ky = alloc1float(emf->n2fft);
-  emf->kz = alloc2float(emf->n1fft, emf->n2fft);
-  
-  /* pre-compute the discrete wavenumber - kx */
-  dkx=2.0*PI/(emf->d1uni*emf->n1fft);
-  emf->kx[0]=0;
-  for(i1=1; i1<(emf->n1fft+1)/2; i1++) {
-    emf->kx[i1]=i1*dkx;
-    emf->kx[emf->n1fft-i1]=-i1*dkx;
-  }
-  if(emf->n1fft%2==0) emf->kx[emf->n1fft/2] = (emf->n1fft/2)*dkx;/* Nyquist freq*/
-  /* pre-compute the discrete wavenumber - ky */
-  dky=2.0*PI/(emf->d2uni*emf->n2fft);
-  emf->ky[0]=0;
-  for(i2=1; i2<(emf->n2fft+1)/2; i2++) {
-    emf->ky[i2]=i2*dky;
-    emf->ky[emf->n2fft-i2]=-i2*dky;
-  }
-  if(emf->n2fft%2==0) emf->ky[emf->n2fft/2] = (emf->n2fft/2)*dky;/* Nyquist freq*/
 
-  for(i2=0; i2<emf->n2fft; i2++){
-    for(i1=0; i1<emf->n1fft; i1++){
-      emf->kz[i2][i1] = sqrt(emf->kx[i1]*emf->kx[i1]+emf->ky[i2]*emf->ky[i2]);
-    }
-  }
-
+  
   /* FE3 is not necessary in the air because we do not compute derivates of Hx
    * and Hy in the air: Hx and Hy are derived directly by extrapolation from Hz. */
-  kxky = fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
-  kxkyz0 = fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
+  emf_kxky = fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
+  emf_kxkyz0 = fftw_malloc(sizeof(fftw_complex)*emf->n1fft*emf->n2fft);
   /* comapred with FFTW, we have opposite sign convention for time, same sign convetion for space */
-  fft_airwave=fftw_plan_dft_2d(emf->n1fft, emf->n2fft, kxky, kxky, FFTW_FORWARD, FFTW_ESTIMATE);
-  ifft_airwave=fftw_plan_dft_2d(emf->n1fft, emf->n2fft, kxky, kxky, FFTW_BACKWARD, FFTW_ESTIMATE);
+  fft_airwave = fftw_plan_dft_2d(emf->n1fft, emf->n2fft, emf_kxky, emf_kxky, FFTW_FORWARD, FFTW_ESTIMATE);
+  ifft_airwave = fftw_plan_dft_2d(emf->n1fft, emf->n2fft, emf_kxky, emf_kxky, FFTW_BACKWARD, FFTW_ESTIMATE);  
+  
+  kx = alloc1float(emf->n1fft);
+  ky = alloc1float(emf->n2fft);
+
+  emf->d1fft = (emf->x1n[emf->n1pad] - emf->x1n[0])/emf->n1pad;
+  emf->d2fft = (emf->x2n[emf->n2pad] - emf->x2n[0])/emf->n2pad;
+  emf->d3fft = emf->x3nu[1] - emf->x3nu[0];
+  if(iproc==0) printf("[d1fft,d2fft,d3fft]=[%g, %g, %g]\n", emf->d1fft, emf->d2fft, emf->d3fft);
+  /* pre-compute the discrete wavenumber - kx */
+  dkx = 2.0*PI/(emf->d1fft*emf->n1fft);
+  kx[0] = 0;
+  for(i1 = 1; i1<(emf->n1fft+1)/2; i1++) {
+    kx[i1] = i1*dkx;
+    kx[emf->n1fft-i1] = -i1*dkx;
+  }
+  if(emf->n1fft%2==0) kx[emf->n1fft/2] = (emf->n1fft/2)*dkx;/* Nyquist freq*/
+
+  /* pre-compute the discrete wavenumber - ky */
+  dky = 2.0*PI/(emf->d2fft*emf->n2fft);
+  ky[0] = 0;
+  for(i2 = 1; i2<(emf->n2fft+1)/2; i2++) {
+    ky[i2] = i2*dky;
+    ky[emf->n2fft-i2] = -i2*dky;
+  }
+  if(emf->n2fft%2==0) ky[emf->n2fft/2] = (emf->n2fft/2)*dky;/* Nyquist freq*/
 }
 
 void airwave_bc_close(emf_t *emf)
 {
-  free1int(emf->nu_i1);
-  free1int(emf->nu_i2);
-  free1int(emf->nu_i1_s);
-  free1int(emf->nu_i2_s);
-
-  free(emf->kx);
-  free(emf->ky);
-  free2float(emf->kz);
-  fftw_free(kxky);
-  fftw_free(kxkyz0);
+  fftw_free(emf_kxky);
+  fftw_free(emf_kxkyz0);
   fftw_destroy_plan(fft_airwave);
-  fftw_destroy_plan(ifft_airwave);
+  fftw_destroy_plan(ifft_airwave);   
+  free(kx);
+  free(ky);
 }
 
-
+//H1[i,j+0.5,k+0.5], size=(n1+1)*n2*n3;
+//H2[i+0.5,j,k+0.5], size=n1*(n2+1)*n3;
+//H3[i+0.5,j+0.5,k], size=n1*n2*(n3+1);
+//H3k=H3(z=0); H1km1=H1(z=-0.5*dz), H2km1=H2(z=-0.5*dz)
 void airwave_bc_update_H(emf_t *emf)
 {
-  int i1, i2, i3, i1_, i2_;
-  float w1, w2, o1, o2, s;
-  bool ok1, ok2;
-  complex t;
-  
-  memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
+  int i1, i2, i3;
+  int j1, j2;
+  float x1, x2, w1, w2, s1, s2, kz;
+  complex tmp;
+
+  //interpolate Hz from nonuniform grid to uniform grid
   i3 = emf->nbe;
-  //interpolation from non-uniform grid to uniform grid
-  //Hz is staggered in both x and y direction
-  o1 = emf->x1n[0] + 0.5*emf->d1uni;
-  o2 = emf->x2n[0] + 0.5*emf->d2uni;
-  for(i2=0; i2<emf->n2uni; i2++){
-    i2_ = emf->nu_i2_s[i2];
-    if(i2_>0 && i2_+1<emf->n2pad){
-      w2 = (o2 + i2*emf->d2uni -emf->x2s[i2_])/(emf->x2s[i2_+1]-emf->x2s[i2_]);
-      ok2 = true;
-    }else{
+  for(i2=0; i2<emf->n2fft; i2++){
+    x2 = emf->x2s[0] + i2*emf->d2fft;
+    if(x2<emf->x2s[emf->n2pad-1]){
+      j2 = find_index(emf->n2pad, emf->x2s, x2);
+      w2 = (x2-emf->x2s[j2])/(emf->x2s[j2+1]-emf->x2s[j2]);
+    }else{//no need for interpolation
+      j2 = emf->n2pad-1;
       w2 = 0;
-      ok2 = false;
     }
-    for(i1=0; i1<emf->n1uni; i1++){
-      i1_ = emf->nu_i1_s[i1];
-      if(i1_>0 && i1_+1<emf->n1pad){
-	w1 = (o1 + i1*emf->d1uni -emf->x1s[i1_])/(emf->x1s[i1_+1]-emf->x1s[i1_]);
-	ok1 = true;
-      }else{
+    for(i1=0; i1<emf->n1fft; i1++){
+      x1 = emf->x1s[0] + i1*emf->d1fft;
+      if(x1<emf->x1s[emf->n1pad-1]){
+	j1 = find_index(emf->n1pad, emf->x1s, x1);
+	w1 = (x1-emf->x1s[j1])/(emf->x1s[j1+1]-emf->x1s[j1]);
+      }else{//no need for interpolation
+	j1 = emf->n1pad-1;
 	w1 = 0;
-	ok1 = false;
       }
-      if(ok1 && ok2){
-	s = emf->H3[i3][i2_][i1_]*(1.-w1)*(1.-w2)
-	  + emf->H3[i3][i2_][i1_+1]*w1*(1.-w2)
-	  + emf->H3[i3][i2_+1][i1_]*(1.-w1)*w2
-	  + emf->H3[i3][i2_+1][i1_+1]*w1*w2;
+
+      if(x1<emf->x1s[emf->n1pad-1] && x2<emf->x2s[emf->n2pad-1]){//bilinear interpolation
+	emf_kxky[i1+emf->n1fft*i2] = (1.-w1)*(1.-w2)*emf->H3[i3][j2][j1] + w1*(1.-w2)*emf->H3[i3][j2][j1+1]
+	  + (1.-w1)*w2*emf->H3[i3][j2+1][j1] + w1*w2*emf->H3[i3][j2+1][j1+1];
       }else
-	s = 0;
-      kxky[i1+emf->n1fft*i2] = s;
+	emf_kxky[i1+emf->n1fft*i2] = 0.; 
     }
   }
-  fftw_execute(fft_airwave);/*Hz(x, y, z=0)-->Hz(kx, ky, z=0)*/
-  memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-  
-  /*---------------------------------------------------------------------
-   * interpolation from dense (uniform) grid to coarse (nonuniform) grid
-   *---------------------------------------------------------------------*/
+  fftw_execute(fft_airwave);//Hz(x,y,z=0)-->Hz(kx,ky,z=0)
+  memcpy(emf_kxkyz0, emf_kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
+
   for(i3=0; i3<emf->rd3; i3++){
-    //----------------------------H1--------------------------------
+    //------------------------------H1----------------------------
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	/* at z=0 level */
-	t = kxkyz0[i1+emf->n1fft*i2]*cexp(-I*emf->kx[i1]*0.5*emf->d1uni)*I*emf->kx[i1]/(emf->kz[i2][i1]+1e-15);
-	/* at z=-0.5*emf->d3 level */
-	kxky[i1+emf->n1fft*i2] = t*exp(-emf->kz[i2][i1]*(i3+0.5)*emf->d3uni);
+	kz = sqrt(kx[i1]*kx[i1] + ky[i2]*ky[i2]);//sqrt(kx^2 + ky^2)
+	tmp = exp(-kz*(i3+0.5)*emf->d3fft)*I*kx[i1]/(kz+1.e-15);
+	tmp *= cexp(-I*kx[i1]*0.5*(emf->x1n[1]-emf->x1n[0]));//shift half grid due to staggering
+	emf_kxky[i1+emf->n1fft*i2] = emf_kxkyz0[i1+emf->n1fft*i2]*tmp;//Hz-->Hx, in wavenumber domain
       }
     }
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2]/= (emf->n1fft*emf->n2fft);
+	emf_kxky[i1+emf->n1fft*i2] /= (emf->n1fft*emf->n2fft);//normalize FFT
       }
     }
-    o1 = emf->x1n[0];//origin of the coordinate
-    o2 = emf->x2n[0] + 0.5*emf->d2uni;//origin of the coordinate
     for(i2=0; i2<emf->n2pad; i2++){
-      i2_ = (emf->x2s[i2]-o2)/emf->d2uni;//index on uniform grid
-      if(i2_>=0 && i2_+1<emf->n2uni){
-	ok2 = true;
-	w2 = (emf->x2s[i2] - i2_*emf->d2uni-o2)/emf->d2uni;
-      }else{
-	ok2 = false;
-	w2 = 0;
-      }
+      s2 = (emf->x2s[i2]-emf->x2s[0]);
+      j2 = s2/emf->d2fft;
+      w2 = s2/emf->d2fft-j2;
       for(i1=0; i1<emf->n1pad; i1++){
-	i1_ = (emf->x1n[i1]-o1)/emf->d1uni;//index on uniform grid
-	if(i1_>=0 && i1_+1<emf->n1uni){
-	  ok1 = true;
-	  w1 = (emf->x1n[i1] - i1_*emf->d1uni-o1)/emf->d1uni;
-	}else{
-	  ok1 = false;
-	  w1 = 0;
-	}
-
-	if(ok1 && ok2){
-	  t = (1.-w1)*(1.-w2)*kxky[i1_ + emf->n1fft*i2_] + w1*(1.-w2)*kxky[i1_+1 + emf->n1fft*i2_]
-	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)] + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
-	}else
-	  t = 0;
-	emf->H1[emf->nbe-1-i3][i2][i1] = creal(t);
+	s1 = (emf->x1n[i1]-emf->x1n[0]);
+	j1 = s1/emf->d1fft;
+	w1 = s1/emf->d1fft-j1;
+	//interpolate H1 from uniform grid
+	emf->H1[emf->nbe-1-i3][i2][i1] = (1.-w1)*(1.-w2)*emf_kxky[j1+emf->n1fft*j2] + w1*(1.-w2)*emf_kxky[j1+1+emf->n1fft*j2]
+	  + (1.-w1)*w2*emf_kxky[j1+emf->n1fft*(j2+1)] + w1*w2*emf_kxky[j1+1+emf->n1fft*(j2+1)];
       }
     }
-    
-    //----------------------------H2----------------------------------
+  
+    //------------------------------H2----------------------------
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	/* at z=0 level */
-	t = kxkyz0[i1+emf->n1fft*i2]*cexp(-I*emf->ky[i2]*0.5*emf->d2uni)*I*emf->ky[i2]/(emf->kz[i2][i1] + 1e-15);
-	/* at z=-0.5*emf->d3 level */
-	kxky[i1+emf->n1fft*i2] = t*exp(-emf->kz[i2][i1]*(i3+0.5)*emf->d3uni);
+	kz = sqrt(kx[i1]*kx[i1] + ky[i2]*ky[i2]);//sqrt(kx^2 + ky^2)
+	tmp = exp(-kz*(i3+0.5)*emf->d3fft)*I*ky[i2]/(kz+1.e-15);
+	tmp *= cexp(-I*ky[i2]*0.5*(emf->x2n[1]-emf->x2n[0]));//shift half grid due to staggering
+	emf_kxky[i1+emf->n1fft*i2] = emf_kxkyz0[i1+emf->n1fft*i2]*tmp;//Hz-->Hy, in wave number domain
       }
     }
     fftw_execute(ifft_airwave);
     for(i2=0; i2<emf->n2fft; i2++){
       for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2]/= (emf->n1fft*emf->n2fft);
+	emf_kxky[i1+emf->n1fft*i2] /= (emf->n1fft*emf->n2fft);//normalize FFT
       }
-    }
-    o1 = emf->x1n[0] + 0.5*emf->d1uni;//origin of the coordinate
-    o2 = emf->x2n[0];//origin of the coordinate
+    }    
+    //get Hy[i+0.5,j,k+0.5] on nonuniform grid from uniform grid by bilinear interpolation
     for(i2=0; i2<emf->n2pad; i2++){
-      i2_ = (emf->x2n[i2]-o2)/emf->d2uni;//index on uniform grid
-      if(i2_>=0 && i2_+1<emf->n2uni){
-	ok2 = true;
-	w2 = (emf->x2n[i2]-i2_*emf->d2uni-o2)/emf->d2uni;
-      }else{
-	ok2 = false;
-	w1 = 0;
-      }
+      s2 = (emf->x2n[i2]-emf->x2n[0]);
+      j2 = s2/emf->d2fft;
+      w2 = s2/emf->d2fft-j2;
       for(i1=0; i1<emf->n1pad; i1++){
-	i1_ = (emf->x1s[i1]-o1)/emf->d1uni;//index on uniform grid
-	if(i1_>=0 && i1_+1<emf->n1uni){
-	  ok1 = true;
-	  w1 = (emf->x1s[i1]-i1_*emf->d1uni-o1)/emf->d1uni;
-	}else{
-	  ok1 = false;
-	  w1 = 0;
-	}
-
-	if(ok1 && ok2){
-	  t = (1.-w1)*(1.-w2)*kxky[i1_ + emf->n1fft* i2_]
-	    + w1*(1.-w2)*kxky[i1_+1 + emf->n1fft* i2_]
-	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)]
-	    + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
-	}else
-	  t = 0;
-	emf->H2[emf->nbe-1-i3][i2][i1] = creal(t);
+	s1 = (emf->x1s[i1]-emf->x1s[0]);
+	j1 = s1/emf->d1fft;
+	w1 = s1/emf->d1fft-j1;
+	//interpolate H2 from uniform grid
+	emf->H2[emf->nbe-1-i3][i2][i1] = (1.-w1)*(1.-w2)*emf_kxky[j1+emf->n1fft*j2] + w1*(1.-w2)*emf_kxky[j1+1+emf->n1fft*j2]
+	  + (1.-w1)*w2*emf_kxky[j1+emf->n1fft*(j2+1)] + w1*w2*emf_kxky[j1+1+emf->n1fft*(j2+1)];
       }
     }
-  }
+  }//end for i3
   
 }
-
-
-void airwave_bc_update_E(emf_t *emf)
-{
-  int i1, i2, i3, i1_, i2_;
-  float w1, w2, o1, o2, s;
-  bool ok1, ok2;
-  complex t;  
-  /*----------------------------------E1------------------------------------*/
-  memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-  i3 = emf->nbe;
-  o1 = emf->x1n[0] + 0.5*emf->d1uni;
-  o2 = emf->x2n[0];
-  for(i2=0; i2<emf->n2uni; i2++){
-    i2_ = emf->nu_i2[i2];
-    if(i2_>=0 && i2_+1<emf->n2pad){
-      ok2 = true;
-      w2 = (o2 + i2*emf->d2uni -emf->x2n[i2_])/(emf->x2n[i2_+1]-emf->x2n[i2_]);
-    }else{
-      ok2 = false;
-      w2 = 0;
-    }
-    for(i1=0; i1<emf->n1uni; i1++){
-      i1_ = emf->nu_i1_s[i1];
-      if(i1_>=0 && i1_+1<emf->n1pad){
-	ok1 = true;
-	w1 = (o1 + i1*emf->d1uni -emf->x1s[i1_])/(emf->x1s[i1_+1]-emf->x1s[i1_]);
-      }else{
-	ok1 = false;
-	w1 = 0;
-      }
-	
-      if(ok1 && ok2){
-	s = emf->E1[i3][i2_][i1_]*(1.-w1)*(1.-w2)
-	  + emf->E1[i3][i2_][i1_+1]*w1*(1.-w2)
-	  + emf->E1[i3][i2_+1][i1_]*(1.-w1)*w2
-	  + emf->E1[i3][i2_+1][i1_+1]*w1*w2;
-      }else
-	s = 0;
-      kxky[i1+emf->n1fft*i2] = s;
-    }
-  }
-  fftw_execute(fft_airwave);/* Ex(x, y, z=0)-->Hx(kx, ky, z=0) */
-  memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-  for(i3=0; i3<emf->rd3-1; i3++){
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->kz[i2][i1]*(i3+1)*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	kxky[i1+emf->n1fft*i2] /= (emf->n1fft*emf->n2fft);
-      }
-    }
-
-    o2 = emf->x2n[0];//origin of the coordinate
-    o1 = emf->x1n[0] + 0.5*emf->d1uni;//origin of the coordinate
-    for(i2=0; i2<emf->n2pad; i2++){
-      i2_ = (emf->x2n[i2]-o2)/emf->d2uni;//index on uniform grid
-      if(i2_>=0 && i2_<emf->n2uni){
-	ok2 = true;
-	w2 = (emf->x2n[i2]-o2-i2_*emf->d2uni)/emf->d2uni;
-      }else{
-	ok2 = false;
-	w1 = 0;
-      }
-      for(i1=0; i1<emf->n1pad; i1++){
-	i1_ = (emf->x1s[i1]-o1)/emf->d1uni;//index on uniform grid
-	if(i1_>=0 && i1_<emf->n1uni){
-	  ok1 = true;
-	  w1 = (emf->x1s[i1]-o1-i1_*emf->d1uni)/emf->d1uni;
-	}else{
-	  ok1 = false;
-	  w1 = 0;
-	}
-
-	if(ok1 && ok2){
-	  t = (1.-w1)*(1-w2)*kxky[i1_ + emf->n1fft* i2_]
-	    + w1*(1-w2)*kxky[i1_+1 + emf->n1fft*i2_]
-	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)]
-	    + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
-	}else
-	  t = 0;
-	emf->E1[emf->nbe-1-i3][i2][i1] = creal(t);
-      }
-    }
-  }
-  
-  /*-----------------------------E2---------------------------------------*/
-  memset(kxky, 0, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-  i3 = emf->nbe;
-  o1 = emf->x1n[0];
-  o2 = emf->x2n[0] + 0.5*emf->d2uni;
-  for(i2=0; i2<emf->n2uni; i2++){
-    i2_ = emf->nu_i2_s[i2];
-    if(i2_>=0 && i2_+1<emf->n2pad){
-      ok2 = true;
-      w2 = (o2 + i2*emf->d2uni -emf->x2s[i2_])/(emf->x2s[i2_+1]-emf->x2s[i2_]);
-    }else{
-      ok2 = false;
-      w2 = 0;
-    }
-    for(i1=0; i1<emf->n1uni; i1++){
-      i1_ = emf->nu_i1[i1];
-      if(i1_>=0 && i1_+1<emf->n1pad){
-	ok1 = true;
-	w1 = (o1 + i1*emf->d1uni -emf->x1n[i1_])/(emf->x1n[i1_+1]-emf->x1n[i1_]);
-      }else{
-	ok1 = false;
-	w1 = 0;
-      }
-
-      if(ok1 && ok2){
-	s = emf->E2[i3][i2_][i1_]*(1.-w1)*(1.-w2)
-	  + emf->E2[i3][i2_][i1_+1]*w1*(1.-w2)
-	  + emf->E2[i3][i2_+1][i1_]*(1.-w1)*w2
-	  + emf->E2[i3][i2_+1][i1_+1]*w1*w2;
-      }else
-	s = 0;	
-      kxky[i1+emf->n1fft*i2] = s;
-    }
-  }
-  fftw_execute(fft_airwave);/* Ex(x, y, z=0)-->Hx(kx, ky, z=0) */
-  memcpy(kxkyz0, kxky, emf->n1fft*emf->n2fft*sizeof(fftw_complex));
-  for(i3=0; i3<emf->rd3-1; i3++){
-    for(i2=0; i2<emf->n2fft; i2++){
-      for(i1=0; i1<emf->n1fft; i1++){
-	kxky[i1+emf->n1fft*i2] = kxkyz0[i1+emf->n1fft*i2]* exp(-emf->kz[i2][i1]*(i3+1)*emf->d3uni);
-      }
-    }
-    fftw_execute(ifft_airwave);
-    for(i2=0; i2<emf->n2uni; i2++){
-      for(i1=0; i1<emf->n1uni; i1++){
-	kxky[i1+emf->n1fft*i2] /= (emf->n1fft*emf->n2fft);
-      }
-    }
-    o2 = emf->x2n[0] + 0.5*emf->d2uni;//origin of the coordinate
-    o1 = emf->x1n[0];//origin of the coordinate
-    for(i2=0; i2<emf->n2pad; i2++){
-      i2_ = (emf->x2s[i2]-o2)/emf->d2uni;//index on uniform grid
-      if(i2_>=0 && i2_<emf->n2uni){
-	ok2 = true;
-	w2 = (emf->x2s[i2]-o2-i2_*emf->d2uni)/emf->d2uni;
-      }else{
-	ok2 = false;
-	w2 = 0;
-      }
-      for(i1=0; i1<emf->n1pad; i1++){
-	i1_ = (emf->x1n[i1]-o1)/emf->d1uni;//index on uniform grid
-	if(i1_>=0 && i1_<emf->n1uni){
-	  ok1 = true;
-	  w1 = (emf->x1n[i1]-o1-i1_*emf->d1uni)/emf->d1uni;
-	}else{
-	  ok1 = false;
-	  w1 = 0;
-	}
-
-	if(ok1 && ok2){
-	  t = (1.-w1)*(1-w2)*kxky[i1_ + emf->n1fft*i2_]
-	    + w1*(1-w2)*kxky[i1_+1 + emf->n1fft*i2_]
-	    + (1.-w1)*w2*kxky[i1_ + emf->n1fft*(i2_+1)]
-	    + w1*w2*kxky[i1_+1 + emf->n1fft*(i2_+1)];
-	}else
-	  t = 0;
-	emf->E2[emf->nbe-1-i3][i2][i1] = creal(t);
-      }
-    }
-
-  }
-
-}
-
 
 /*----------------------------------------------------------------------------*/
-void interpolation_init(acq_t *acqui, emf_t *emf, 
-			interp_t *interp_rg, interp_t *interp_sg)
+void interpolation_init(acq_t *acqui, emf_t *emf, interp_t *interp_rg, interp_t *interp_sg)
 {
   if(acqui->nsubsrc%2==0) err("nsubsrc must be odd number!");
   if(acqui->nsubrec%2==0) err("nsubrec must be odd number!");
