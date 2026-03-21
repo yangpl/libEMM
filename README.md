@@ -1,105 +1,150 @@
 # libEMM
-A C + CUDA library for 3D CSEM modelling
 
-Author: Pengliang Yang, Harbin Institute of Technology, China
+`libEMM` is a C/CUDA codebase for 3D controlled-source electromagnetic (CSEM) forward modelling. The main solver uses a high-order finite-difference time-domain (FDTD) scheme in a fictitious wave domain, with MPI for distributed execution, OpenMP for shared-memory parallelism, and optional CUDA acceleration.
 
-Email: ypl.2100@gmail.com
+The repository includes the core library, standalone solver variants, reproducible example models, and the accompanying papers/manual.
 
+## Scope
 
-Programming language: C, CUDA, Fortran, Shell
+- Problem class: land and marine CSEM forward modelling
+- Governing equations: first-order diffusive Maxwell equations
+- Numerical method: high-order staggered-grid FDTD in a fictitious wave domain transformation
+- Parallelization: MPI + OpenMP, with optional CUDA support
+- Primary platform: Linux
 
-Operating System: Linux
+## Dependencies
 
-Software dependencies: MPI, FFTW, CUDA (optional)
+Required for the main solver in [`src`](./src):
 
-Nature of problem: Land/Marine Controlled-source electromagnetics (CSEM)
+- `mpicc` / MPI development libraries
+- FFTW3
+- POSIX threads / OpenMP-capable compiler toolchain
+- Standard C math library
 
-Solution method: High-order finite-dfference time-domain (FDTD) on staggered non-uniform grid by fictious wave domain transformation
+Optional:
 
-Governing equation: 1st order diffusive Maxwell equation
+- NVIDIA CUDA toolkit for GPU builds
+- Python 3 for the plotting scripts in the example directories
+- `gnuplot` / MATLAB or compatible tools for some auxiliary visualization scripts
 
-## Code structure:
+## Build
 
-* src: the source code in .c and .cu/.cuh. Code applies uniform gridding along x and y axes, but nonuniform gridding along z axis.
+The main executable is built from [`src`](./src) and written to [`bin/fdtd`](./bin/fdtd).
 
-* include: the header files in .h
+### CPU build
 
-* doc: the mannual for libEMM
+```bash
+cd src
+make
+```
 
-* bin: the folderto store executable after compilation
+### GPU build
 
-* run_1d: Application example in 3D model of 1D layered sturture
+```bash
+cd src
+make GPU=1
+```
 
-* run_bathy_2d: Appliation example in 3D model of 2D structure with seafloor bathymetry
+Notes:
 
-* src_fdtd_nugrid: independent folder to run FDTD on pure nonuniform grid in x, y and z axes
+- The Makefile uses `mpicc` by default.
+- For GPU builds, review `CUDA_PATH` and `-arch=sm_50` in [`src/Makefile`](./src/Makefile) and adapt them to your local CUDA installation and GPU architecture.
+- The default `make` target runs `clean` before rebuilding.
 
-* src_fdtd_unigrid: independent folder to run FDTD on pure uniform grid in x, y and z axes.
-  It pads nb layered on each side of x, y, z axes.
-  
-* src_fdtd_unigrid_v2: independent folder to run FDTD on pure uniform grid in x, y and z axes.
- The difference with src_fdtd_unigrid is: It removes nb layers above sea surface. This makes the computation much more efficient.
+## Main Workflow
 
-## Instructions to run
+The primary executable is [`bin/fdtd`](./bin/fdtd). Runtime parameters are passed on the command line in `key=value` form.
 
-1. Compile the code:
+Typical required inputs include:
 
-   cd src;
+- source file: `fsrc=...`
+- receiver file: `frec=...`
+- source-receiver table: `fsrcrec=...`
+- resistivity volumes: `frho11=...`, `frho22=...`, `frho33=...`
+- active source/receiver channels: `chsrc=...`, `chrec=...`
+- model extents and sampling: `x1min`, `x1max`, `x2min`, `x2max`, `x3min`, `x3max`, `n1`, `n2`, `n3`, `d1`, `d2`, `d3`
+- absorbing boundary / interpolation controls: `nb`, `ne`, `rd`
+- frequencies: `freqs=...`
 
-   make (to compile with mpicc)
+Optional nonuniform vertical grid support is enabled with:
 
-   or
+- `nugrid=1`
+- `fx3nu=...`
 
-   make GPU=1 (to comipile with mpicc and CUDA)
+## Reproducible Examples
 
-2. Running reproducible examples
+### 1. Layered 1D-style model
 
-    Example 1: run_1d
+[`run_1d`](./run_1d) contains a simple example that runs the main solver on a 3D grid representing a layered structure.
 
-    cd run_1d;
+```bash
+cd run_1d
+bash run.sh
+python3 plot_emdata.py
+```
 
-    bash run.sh
-    
+The example writes modeled EM responses such as `emf_0001.txt` and comparison figures such as `comparison.png`.
 
-    To plot the result, use:
-    python3 plot_emdata.py
-    
-    Example 2: run_bathy_2d
+### 2. Bathymetry / 2D seafloor structure
 
-    cd run_bathy_2d
+[`run_bathy_2d`](./run_bathy_2d) demonstrates a marine model with seafloor bathymetry and nonuniform vertical gridding.
 
-    bash run.sh
-    
+```bash
+cd run_bathy_2d
+bash run.sh
+python3 plot_emdata.py
+python3 plot_cmp_libEMM_mare2dem.py
+```
 
-    To plot the result，use:
+This example compares `libEMM` output with MARE2DEM-style reference data and includes plotting utilities for survey geometry and response curves.
 
-    python3 plot_cmp_libEMM_mare2dem.py
+## Input Data Preparation
 
-    python3 plot_emdata.py
-    
-NB: the input files may be generated prior to running. The resistivity files and nonuniform grid in binary format will be generated in src_nugrid:
+The example directories expect local input files such as:
 
-    cd src_nugrid;
+- `sources.txt`
+- `receivers.txt`
+- `src_rec_table.txt`
+- `rho11`, `rho22`, `rho33`
+- `x3nu` for nonuniform vertical grids
 
-    make
-    
-    ./main
-    
-    One may need to copy rho11, rho22, rho33 and x3nu into /run_1d and /run_bathy_2d.
-    
+Some of these binary model files are generated by the mesh/nonuniform-grid utilities rather than written by hand. In this repository, the relevant helper code lives in directories such as [`src_mesh_seafloor`](./src_mesh_seafloor) and the standalone nonuniform-grid solver folders.
 
+If you regenerate model files, make sure the expected binary inputs are copied into the example run directory before launching `../bin/fdtd`.
+
+## Repository Layout
+
+- [`src`](./src): main MPI/OpenMP solver, plus optional CUDA implementation
+- [`include`](./include): shared headers and runtime data structures
+- [`bin`](./bin): compiled executables
+- [`doc`](./doc): manual and publication PDFs
+- [`run_1d`](./run_1d): reproducible layered-model example
+- [`run_bathy_2d`](./run_bathy_2d): reproducible bathymetry example
+- [`src_fdtd_nugrid`](./src_fdtd_nugrid): standalone solver for fully nonuniform grids in `x`, `y`, and `z`
+- [`src_fdtd_unigrid`](./src_fdtd_unigrid): standalone solver for fully uniform grids with padded layers on all sides
+- [`src_fdtd_unigrid_v2`](./src_fdtd_unigrid_v2): optimized uniform-grid variant that removes extra layers above the sea surface for better efficiency
+- [`src_mesh_seafloor`](./src_mesh_seafloor): mesh generation / preprocessing utilities for seafloor-oriented models
+
+## Documentation
+
+Additional documentation is available in [`doc`](./doc), including:
+
+- `libEMM_mannual.pdf`
+- `cpc_libEMM.pdf`
+
+## Citation
+
+If `libEMM` contributes to published research, cite:
+
+1. Pengliang Yang, 2023, “libEMM: A fictitious wave domain 3D CSEM modelling library bridging sequential and parallel GPU implementation,” *Computer Physics Communications*, 288, 108745. DOI: [10.1016/j.cpc.2023.108745](https://doi.org/10.1016/j.cpc.2023.108745)
+2. Pengliang Yang and Rune Mittet, 2023, “Controlled-source electromagnetics modelling using high order finite-difference time-domain method on a nonuniform grid,” *Geophysics*, 88(2), E53-E67. DOI: [10.1190/geo2022-0134.1](https://doi.org/10.1190/geo2022-0134.1)
 
 ## Acknowledgement
 
-The initiative to start this ficititious wave domain modelling project begins when I was a scientist working in Electromagnetic Geoservices ASA (EMGS). I developed some modeling codes in my free time, but they never work correctly.  After I left EMGS in 2020, I restarted everything from scratch using all things I learned from Madagascar open software development. It took me more than one year to make it work correctly: the solution now matches the semi-analytic one. During the development, I benefit from the discussion with Rune Mittet, in order to understand his method.
+The project originated from earlier CSEM modelling work started during the author's time at Electromagnetic Geoservices ASA (EMGS), and was later rebuilt from scratch into the current implementation. The development also benefited from discussions with Rune Mittet.
 
+## Author
 
-## Credits:
-
-Please give a credit to the following publication if any component of libEMM is used in your research:
-
-1. Pengliang Yang, libEMM: A fictious wave domain 3D CSEM modelling library bridging sequential and parallel GPU implementation, 2023 Computer Physics Communications, Vol. 288 p. 108745 [doi:10.1016/j.cpc.2023.108745](https://doi.org/10.1016/j.cpc.2023.108745)
-
-2. Pengliang Yang and Rune Mittet, Controlled-source electromagnetics modelling using high order finite-difference time-domain method on a nonuniform grid 2023 Geophysics , Vol. 88, No. 2 Society of Exploration Geophysicists p. E53-E67
-[doi:10.1190/geo2022-0134.1](https://doi.org/10.1190/geo2022-0134.1)
-
+Pengliang Yang  
+Harbin Institute of Technology, China  
+Email: `ypl.2100@gmail.com`
